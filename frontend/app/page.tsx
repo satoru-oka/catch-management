@@ -46,6 +46,9 @@ export default function HomePage() {
           <button onClick={() => router.push('/lures')} className="text-sm text-gray-500 hover:text-gray-700">
             🎣 ルアー
           </button>
+          <button onClick={() => router.push('/stats')} className="text-sm text-gray-500 hover:text-gray-700">
+            📊 統計
+          </button>
           <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700">
             ログアウト
           </button>
