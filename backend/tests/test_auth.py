@@ -112,3 +112,71 @@ def test_protected_endpoint_without_token_is_rejected():
         res = c.get("/api/spots/")
     # FastAPI のバージョンによって 401/403 のどちらかが返る
     assert res.status_code in (401, 403)
+
+
+def test_postgrest_jwt_error_is_mapped_to_401(monkeypatch):
+    """PostgREST が PGRST301 を返したら 500 ではなく 401 にする (ISSUE-003)。"""
+    from postgrest.exceptions import APIError as PostgrestAPIError
+
+    from auth import get_supabase
+
+    class _RaisingTable:
+        def select(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            raise PostgrestAPIError(
+                {
+                    "message": "Expected 3 parts in JWT; got 1",
+                    "code": "PGRST301",
+                    "hint": None,
+                    "details": None,
+                }
+            )
+
+    class _RaisingClient:
+        def table(self, _name):
+            return _RaisingTable()
+
+    app.dependency_overrides[get_supabase] = lambda: _RaisingClient()
+    try:
+        with TestClient(app, headers={"Authorization": "Bearer broken"}) as c:
+            res = c.get("/api/spots/")
+        assert res.status_code == 401
+        assert res.json() == {"detail": "Invalid token"}
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_postgrest_other_error_is_mapped_to_500():
+    """JWT 系以外の PostgREST エラーは 500 (詳細はクライアントに漏らさない)。"""
+    from postgrest.exceptions import APIError as PostgrestAPIError
+
+    from auth import get_supabase
+
+    class _RaisingTable:
+        def select(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            raise PostgrestAPIError(
+                {
+                    "message": "permission denied",
+                    "code": "42501",
+                    "hint": None,
+                    "details": None,
+                }
+            )
+
+    class _RaisingClient:
+        def table(self, _name):
+            return _RaisingTable()
+
+    app.dependency_overrides[get_supabase] = lambda: _RaisingClient()
+    try:
+        with TestClient(app, headers={"Authorization": "Bearer x"}) as c:
+            res = c.get("/api/spots/")
+        assert res.status_code == 500
+        assert res.json() == {"detail": "Database error"}
+    finally:
+        app.dependency_overrides.clear()
