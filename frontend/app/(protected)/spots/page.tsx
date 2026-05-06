@@ -133,34 +133,34 @@ export default function SpotsPage() {
           <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="font-bold text-gray-700">{editingId ? '編集' : '新規追加'}</h2>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ポイント名 *</label>
-              <input type="text" name="name" value={form.name} onChange={handleChange}
+              <label htmlFor="spot-form-name" className="block text-sm font-medium text-gray-700 mb-1">ポイント名 *</label>
+              <input type="text" id="spot-form-name" name="name" value={form.name} onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="上流の淵" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">川の名前</label>
-              <input type="text" name="river_name" value={form.river_name} onChange={handleChange}
+              <label htmlFor="spot-form-river_name" className="block text-sm font-medium text-gray-700 mb-1">川の名前</label>
+              <input type="text" id="spot-form-river_name" name="river_name" value={form.river_name} onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="○○川" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">緯度</label>
-                <input type="number" name="latitude" value={form.latitude} onChange={handleChange}
+                <label htmlFor="spot-form-latitude" className="block text-sm font-medium text-gray-700 mb-1">緯度</label>
+                <input type="number" id="spot-form-latitude" name="latitude" value={form.latitude} onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="35.681" step="any" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">経度</label>
-                <input type="number" name="longitude" value={form.longitude} onChange={handleChange}
+                <label htmlFor="spot-form-longitude" className="block text-sm font-medium text-gray-700 mb-1">経度</label>
+                <input type="number" id="spot-form-longitude" name="longitude" value={form.longitude} onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="139.767" step="any" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
-              <textarea name="notes" value={form.notes} onChange={handleChange} rows={2}
+              <label htmlFor="spot-form-notes" className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
+              <textarea id="spot-form-notes" name="notes" value={form.notes} onChange={handleChange} rows={2}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="ポイントの特徴など..." />
             </div>
