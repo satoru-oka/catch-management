@@ -192,3 +192,111 @@ npm run dev
 - **フロントエンド**: `http://localhost:3000`（Next.js）
 - `.env` 系ファイルを変更したらサーバーの再起動が必要
 - `uvicorn --reload` はファイル保存時にサーバーを自動再起動するが、ブラウザは手動でリロードが必要
+
+---
+
+## 6. テスト
+
+### 6-1. バックエンド (pytest)
+
+```bash
+cd backend
+source venv/bin/activate
+pip install -r requirements-dev.txt   # 初回のみ
+pytest
+```
+
+Supabase に接続する必要は無く、`tests/conftest.py` がフェイク Supabase クライアントを
+依存性注入で差し込みます。
+
+### 6-2. フロントエンド (Vitest + Testing Library)
+
+```bash
+cd frontend
+npm install         # 初回のみ
+npm test            # 1 回実行
+npm run test:watch  # ウォッチモード
+```
+
+こちらも実 Supabase / 実 API には接続せず、各テストで `vi.mock` により差し替え。
+
+### 6-3. バックエンド結合テスト (実 Supabase)
+
+`backend/tests/integration/` 配下のテストは **本物の Supabase に接続して**、認証・
+RLS・PostgREST まで含めて検証します。`@pytest.mark.integration` マーカーが付いていて、
+環境変数が無ければ自動 skip されるので、ユニットテストの実行には影響しません。
+
+#### 6-3-1. テスト用 Supabase プロジェクトの準備 (一度きり)
+
+1. Supabase ダッシュボードで **テスト専用プロジェクト** を新規作成 (`catch-management-test` 等)。
+   ⚠️ 本番プロジェクトを使うとテストでユーザー作成/削除を繰り返してデータが汚染される。
+2. SQL Editor で本 README の「2-2. テーブル作成」の SQL をそのまま実行。
+3. Authentication → Providers → Email → **Confirm email を OFF**。
+4. Project Settings → API から以下を取得:
+   - `URL` → `TEST_SUPABASE_URL`
+   - `anon public key` → `TEST_SUPABASE_ANON_KEY`
+   - `service_role` key → `TEST_SUPABASE_SERVICE_ROLE_KEY` (admin API でユーザー作成/削除に使用)
+5. ローカル: `backend/.env.test.example` を `backend/.env.test` にコピーして値を埋める。
+6. CI: GitHub リポジトリの Settings → Secrets and variables → Actions で同じ 3 つを登録。
+
+#### 6-3-2. 実行
+
+```bash
+cd backend
+source venv/bin/activate
+pip install -r requirements-dev.txt
+pytest -m integration              # 結合テストだけ実行
+pytest                             # ユニット + 結合 をまとめて実行
+pytest -m "not integration"        # ユニットだけ
+```
+
+#### 6-3-3. 隔離戦略
+
+各テストは **使い捨ての Supabase ユーザーを作成 → 操作 → 削除** で完結します。
+`auth.users` の `ON DELETE CASCADE` が `spots` / `sessions` / `lures` に張られて
+いるので、ユーザー削除でテストデータも自動的に消えます。RLS の境界テスト
+(`test_rls_blocks_other_users_*`) では追加で `second_user` fixture を使います。
+
+### 6-4. ローカルで Supabase をフルスタック起動 (任意 / 選択肢 C)
+
+CI とは別に、開発者がオフラインで結合テストを高速に回したい場合は
+[Supabase CLI](https://supabase.com/docs/guides/cli) でローカルに同等スタックを
+起動できます。
+
+```bash
+brew install supabase/tap/supabase    # 初回のみ
+cd backend
+supabase init                          # 初回のみ (supabase/ ディレクトリ生成)
+supabase start                         # Docker で Postgres+GoTrue+PostgREST を起動
+```
+
+`supabase start` の出力に表示される `API URL` / `anon key` / `service_role key` を
+そのまま `backend/.env.test` に書けば `pytest -m integration` がローカル Supabase に
+向きます。CI は引き続きクラウド側のテストプロジェクトを使う構成を推奨。
+
+### 6-5. CI (GitHub Actions)
+
+`.github/workflows/ci.yml` が `push` および `pull_request` で起動し、3 ジョブを実行:
+
+| ジョブ | 内容 | Secrets |
+|---|---|---|
+| `backend` | `pytest` (ユニットのみ、`-m "not integration"` 相当) | 不要 |
+| `frontend` | `npm test` (Vitest) | 不要 |
+| `integration` | `pytest -m integration` (実 Supabase) | `TEST_SUPABASE_*` 3 つ |
+
+- Secrets 未登録の状態でも `integration` ジョブは fixture が自動 skip するので落ちません。
+- fork からの PR は Secrets にアクセスできないため `integration` をスキップする条件付き。
+- `concurrency: ci-integration-${ref}` で同一ブランチの結合テストを直列化し、
+  テスト用 Supabase へのデータ衝突や API レートを抑制。
+
+ローカルでの CI 同等再現:
+```bash
+# unit (backend)
+cd backend && SUPABASE_URL=https://test.supabase.co SUPABASE_ANON_KEY=test-anon-key pytest -m "not integration"
+
+# unit (frontend)
+cd frontend && npm ci && npm test
+
+# integration (要 .env.test)
+cd backend && pytest -m integration
+```
