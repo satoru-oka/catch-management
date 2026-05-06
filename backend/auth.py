@@ -1,16 +1,28 @@
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from database import supabase
+from supabase import create_client, Client
+from database import supabase, SUPABASE_URL, SUPABASE_ANON_KEY
 
 security = HTTPBearer()
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
+def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> str:
     token = credentials.credentials
     try:
         response = supabase.auth.get_user(token)
         if not response.user:
             raise HTTPException(status_code=401, detail="Invalid token")
         return str(response.user.id)
+    except HTTPException:
+        raise
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+def get_supabase(
+    credentials: HTTPAuthorizationCredentials = Security(security),
+) -> Client:
+    # PostgRESTにユーザーJWTを渡すことで auth.uid() が解決され RLS が効く
+    client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    client.postgrest.auth(credentials.credentials)
+    return client

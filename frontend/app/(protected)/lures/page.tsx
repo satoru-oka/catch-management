@@ -2,51 +2,113 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, ApiError } from '@/lib/api'
+import { FullScreenSpinner } from '@/lib/Loading'
+import type { Lure } from '@/lib/types'
+
+type FormState = {
+  name: string
+  type: string
+  color: string
+  length_mm: string
+  weight_g: string
+  notes: string
+}
+
+const emptyForm: FormState = { name: '', type: '', color: '', length_mm: '', weight_g: '', notes: '' }
+
+const fromLure = (l: Lure): FormState => ({
+  name: l.name,
+  type: l.type ?? '',
+  color: l.color ?? '',
+  length_mm: l.length_mm?.toString() ?? '',
+  weight_g: l.weight_g?.toString() ?? '',
+  notes: l.notes ?? '',
+})
+
+const toPayload = (f: FormState) => {
+  const data: Record<string, unknown> = Object.fromEntries(
+    Object.entries(f).filter(([, v]) => v !== ''),
+  )
+  if (data.length_mm) data.length_mm = parseFloat(data.length_mm as string)
+  if (data.weight_g) data.weight_g = parseFloat(data.weight_g as string)
+  return data
+}
 
 export default function LuresPage() {
   const router = useRouter()
-  const [lures, setLures] = useState<any[]>([])
+  const [lures, setLures] = useState<Lure[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({
-    name: '',
-    type: '',
-    color: '',
-    length_mm: '',
-    weight_g: '',
-    notes: '',
-  })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [form, setForm] = useState<FormState>(emptyForm)
+
+  const reload = () =>
+    apiFetch<Lure[]>('/api/lures')
+      .then(setLures)
+      .catch((e: ApiError) => setError(e.detail))
 
   useEffect(() => {
-    apiFetch('/api/lures').then((data) => {
-      setLures(data)
-      setLoading(false)
-    })
+    reload().finally(() => setLoading(false))
   }, [])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
     setForm({ ...form, [e.target.name]: e.target.value })
+  }
+
+  const startCreate = () => {
+    setEditingId(null)
+    setForm(emptyForm)
+    setShowForm(true)
+  }
+
+  const startEdit = (l: Lure) => {
+    setEditingId(l.id)
+    setForm(fromLure(l))
+    setShowForm(true)
+  }
+
+  const cancel = () => {
+    setShowForm(false)
+    setEditingId(null)
+    setForm(emptyForm)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const data: any = Object.fromEntries(Object.entries(form).filter(([_, v]) => v !== ''))
-    if (data.length_mm) data.length_mm = parseFloat(data.length_mm)
-    if (data.weight_g) data.weight_g = parseFloat(data.weight_g)
-    const newLure = await apiFetch('/api/lures', { method: 'POST', body: JSON.stringify(data) })
-    setLures([...lures, newLure])
-    setShowForm(false)
-    setForm({ name: '', type: '', color: '', length_mm: '', weight_g: '', notes: '' })
+    try {
+      if (editingId) {
+        await apiFetch<Lure>(`/api/lures/${editingId}`, {
+          method: 'PUT',
+          body: JSON.stringify(toPayload(form)),
+        })
+      } else {
+        await apiFetch<Lure>('/api/lures', {
+          method: 'POST',
+          body: JSON.stringify(toPayload(form)),
+        })
+      }
+      cancel()
+      await reload()
+    } catch (e) {
+      alert(e instanceof ApiError ? e.detail : '保存に失敗しました')
+    }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('このルアーを削除しますか？')) return
-    await apiFetch(`/api/lures/${id}`, { method: 'DELETE' })
-    setLures(lures.filter((l) => l.id !== id))
+    if (!confirm('このルアーを削除しますか?')) return
+    try {
+      await apiFetch(`/api/lures/${id}`, { method: 'DELETE' })
+      setLures(lures.filter((l) => l.id !== id))
+    } catch (e) {
+      alert(e instanceof ApiError ? e.detail : '削除に失敗しました')
+    }
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>
+  if (loading) return <FullScreenSpinner />
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -56,9 +118,15 @@ export default function LuresPage() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+            {error}
+          </div>
+        )}
+
         <div className="flex justify-end">
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={showForm ? cancel : startCreate}
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg"
           >
             {showForm ? 'キャンセル' : '＋ ルアー追加'}
@@ -67,6 +135,7 @@ export default function LuresPage() {
 
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-4">
+            <h2 className="font-bold text-gray-700">{editingId ? '編集' : '新規追加'}</h2>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ルアー名 *</label>
               <input type="text" name="name" value={form.name} onChange={handleChange}
@@ -119,7 +188,7 @@ export default function LuresPage() {
 
         {lures.length === 0 ? (
           <div className="text-center text-gray-400 py-16 bg-white rounded-xl shadow-sm">
-            <div className="text-5xl mb-4">🎣</div>
+            <div className="text-5xl mb-4" aria-hidden="true">🎣</div>
             <p>ルアーがまだありません</p>
           </div>
         ) : (
@@ -138,12 +207,10 @@ export default function LuresPage() {
                     </div>
                     {lure.notes && <p className="text-sm text-gray-400 mt-2">{lure.notes}</p>}
                   </div>
-                  <button
-                    onClick={() => handleDelete(lure.id)}
-                    className="text-red-400 hover:text-red-600 text-sm ml-4"
-                  >
-                    削除
-                  </button>
+                  <div className="flex flex-col gap-1 ml-4 text-sm">
+                    <button onClick={() => startEdit(lure)} className="text-gray-500 hover:text-gray-700">編集</button>
+                    <button onClick={() => handleDelete(lure.id)} className="text-red-400 hover:text-red-600">削除</button>
+                  </div>
                 </div>
               </div>
             ))}

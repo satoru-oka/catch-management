@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date, time
-from database import supabase_admin
-from auth import get_current_user
+from supabase import Client
+from auth import get_current_user, get_supabase
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -31,11 +31,10 @@ class SessionUpdate(BaseModel):
 
 
 @router.get("/")
-def list_sessions(user_id: str = Depends(get_current_user)):
+def list_sessions(db: Client = Depends(get_supabase)):
     result = (
-        supabase_admin.table("sessions")
+        db.table("sessions")
         .select("*, spots(name, river_name)")
-        .eq("user_id", user_id)
         .order("date", desc=True)
         .execute()
     )
@@ -43,7 +42,11 @@ def list_sessions(user_id: str = Depends(get_current_user)):
 
 
 @router.post("/")
-def create_session(session: SessionCreate, user_id: str = Depends(get_current_user)):
+def create_session(
+    session: SessionCreate,
+    db: Client = Depends(get_supabase),
+    user_id: str = Depends(get_current_user),
+):
     data = {k: v for k, v in session.model_dump().items() if v is not None}
     data["user_id"] = user_id
     if "date" in data:
@@ -52,16 +55,15 @@ def create_session(session: SessionCreate, user_id: str = Depends(get_current_us
         data["start_time"] = str(data["start_time"])
     if "end_time" in data:
         data["end_time"] = str(data["end_time"])
-    result = supabase_admin.table("sessions").insert(data).execute()
+    result = db.table("sessions").insert(data).execute()
     return result.data[0]
 
 
 @router.get("/stats/monthly")
-def monthly_stats(user_id: str = Depends(get_current_user)):
+def monthly_stats(db: Client = Depends(get_supabase)):
     result = (
-        supabase_admin.table("sessions")
+        db.table("sessions")
         .select("date, catches(id, length_cm, fish_species)")
-        .eq("user_id", user_id)
         .execute()
     )
     stats = {}
@@ -76,12 +78,11 @@ def monthly_stats(user_id: str = Depends(get_current_user)):
 
 
 @router.get("/{session_id}")
-def get_session(session_id: str, user_id: str = Depends(get_current_user)):
+def get_session(session_id: str, db: Client = Depends(get_supabase)):
     result = (
-        supabase_admin.table("sessions")
+        db.table("sessions")
         .select("*, spots(name, river_name), catches(*)")
         .eq("id", session_id)
-        .eq("user_id", user_id)
         .execute()
     )
     if not result.data:
@@ -91,7 +92,7 @@ def get_session(session_id: str, user_id: str = Depends(get_current_user)):
 
 @router.put("/{session_id}")
 def update_session(
-    session_id: str, session: SessionUpdate, user_id: str = Depends(get_current_user)
+    session_id: str, session: SessionUpdate, db: Client = Depends(get_supabase)
 ):
     data = {k: v for k, v in session.model_dump().items() if v is not None}
     if "date" in data:
@@ -100,27 +101,15 @@ def update_session(
         data["start_time"] = str(data["start_time"])
     if "end_time" in data:
         data["end_time"] = str(data["end_time"])
-    result = (
-        supabase_admin.table("sessions")
-        .update(data)
-        .eq("id", session_id)
-        .eq("user_id", user_id)
-        .execute()
-    )
+    result = db.table("sessions").update(data).eq("id", session_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="釣行が見つかりません")
     return result.data[0]
 
 
 @router.delete("/{session_id}")
-def delete_session(session_id: str, user_id: str = Depends(get_current_user)):
-    result = (
-        supabase_admin.table("sessions")
-        .delete()
-        .eq("id", session_id)
-        .eq("user_id", user_id)
-        .execute()
-    )
+def delete_session(session_id: str, db: Client = Depends(get_supabase)):
+    result = db.table("sessions").delete().eq("id", session_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="釣行が見つかりません")
     return {"message": "削除しました"}

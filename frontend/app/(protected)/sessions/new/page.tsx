@@ -1,13 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, ApiError } from '@/lib/api'
+import type { Spot, Session } from '@/lib/types'
+
+type FormState = {
+  spot_id: string
+  date: string
+  start_time: string
+  end_time: string
+  water_level: string
+  water_clarity: string
+  weather: string
+  notes: string
+}
 
 export default function NewSessionPage() {
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [spots, setSpots] = useState<Spot[]>([])
+  const [form, setForm] = useState<FormState>({
+    spot_id: '',
     date: new Date().toISOString().split('T')[0],
     start_time: '',
     end_time: '',
@@ -17,16 +32,28 @@ export default function NewSessionPage() {
     notes: '',
   })
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  useEffect(() => {
+    apiFetch<Spot[]>('/api/spots').then(setSpots).catch(() => setSpots([]))
+  }, [])
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    const data = Object.fromEntries(Object.entries(form).filter(([_, v]) => v !== ''))
-    await apiFetch('/api/sessions', { method: 'POST', body: JSON.stringify(data) })
-    router.push('/')
+    setSubmitting(true)
+    setError(null)
+    const data = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== ''))
+    try {
+      await apiFetch<Session>('/api/sessions', { method: 'POST', body: JSON.stringify(data) })
+      router.push('/')
+    } catch (e) {
+      setError(e instanceof ApiError ? e.detail : '保存に失敗しました')
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -42,6 +69,24 @@ export default function NewSessionPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">日付 *</label>
             <input type="date" name="date" value={form.date} onChange={handleChange}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">ポイント</label>
+            <select name="spot_id" value={form.spot_id} onChange={handleChange}
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">選択してください</option>
+              {spots.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.river_name ? `${s.river_name} / ${s.name}` : s.name}
+                </option>
+              ))}
+            </select>
+            {spots.length === 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                ポイントは <button type="button" onClick={() => router.push('/spots')} className="underline">ポイント管理</button> から追加できます
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -92,9 +137,11 @@ export default function NewSessionPage() {
               placeholder="釣行のメモを入力..." />
           </div>
 
-          <button type="submit" disabled={loading}
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+
+          <button type="submit" disabled={submitting}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg text-sm transition disabled:opacity-50">
-            {loading ? '保存中...' : '釣行を保存'}
+            {submitting ? '保存中...' : '釣行を保存'}
           </button>
         </form>
       </main>

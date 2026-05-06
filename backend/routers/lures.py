@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from database import supabase_admin
-from auth import get_current_user
+from supabase import Client
+from auth import get_current_user, get_supabase
 
 router = APIRouter(prefix="/api/lures", tags=["lures"])
 
@@ -26,64 +26,44 @@ class LureUpdate(BaseModel):
 
 
 @router.get("/")
-def list_lures(user_id: str = Depends(get_current_user)):
-    result = (
-        supabase_admin.table("lures")
-        .select("*")
-        .eq("user_id", user_id)
-        .order("name")
-        .execute()
-    )
+def list_lures(db: Client = Depends(get_supabase)):
+    result = db.table("lures").select("*").order("name").execute()
     return result.data
 
 
 @router.post("/")
-def create_lure(lure: LureCreate, user_id: str = Depends(get_current_user)):
+def create_lure(
+    lure: LureCreate,
+    db: Client = Depends(get_supabase),
+    user_id: str = Depends(get_current_user),
+):
     data = {k: v for k, v in lure.model_dump().items() if v is not None}
     data["user_id"] = user_id
-    result = supabase_admin.table("lures").insert(data).execute()
+    result = db.table("lures").insert(data).execute()
     return result.data[0]
 
 
 @router.put("/{lure_id}")
-def update_lure(
-    lure_id: str, lure: LureUpdate, user_id: str = Depends(get_current_user)
-):
+def update_lure(lure_id: str, lure: LureUpdate, db: Client = Depends(get_supabase)):
     data = {k: v for k, v in lure.model_dump().items() if v is not None}
-    result = (
-        supabase_admin.table("lures")
-        .update(data)
-        .eq("id", lure_id)
-        .eq("user_id", user_id)
-        .execute()
-    )
+    result = db.table("lures").update(data).eq("id", lure_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ルアーが見つかりません")
     return result.data[0]
 
 
 @router.delete("/{lure_id}")
-def delete_lure(lure_id: str, user_id: str = Depends(get_current_user)):
-    result = (
-        supabase_admin.table("lures")
-        .delete()
-        .eq("id", lure_id)
-        .eq("user_id", user_id)
-        .execute()
-    )
+def delete_lure(lure_id: str, db: Client = Depends(get_supabase)):
+    result = db.table("lures").delete().eq("id", lure_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ルアーが見つかりません")
     return {"message": "削除しました"}
 
 
 @router.get("/stats")
-def lure_stats(user_id: str = Depends(get_current_user)):
-    result = (
-        supabase_admin.table("catches")
-        .select("lure_name, lure_color, length_cm, sessions!inner(user_id)")
-        .eq("sessions.user_id", user_id)
-        .execute()
-    )
+def lure_stats(db: Client = Depends(get_supabase)):
+    # RLSによりログインユーザーのcatchesのみ取得される
+    result = db.table("catches").select("lure_name, lure_color, length_cm").execute()
     stats = {}
     for catch in result.data:
         key = catch.get("lure_name") or "不明"

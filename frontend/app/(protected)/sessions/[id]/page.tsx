@@ -2,28 +2,57 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, ApiError } from '@/lib/api'
+import { FullScreenSpinner } from '@/lib/Loading'
+import type { SessionDetail } from '@/lib/types'
 
 export default function SessionDetailPage() {
   const router = useRouter()
-  const { id } = useParams()
-  const [session, setSession] = useState<any>(null)
+  const params = useParams<{ id: string }>()
+  const id = params.id
+  const [session, setSession] = useState<SessionDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    apiFetch(`/api/sessions/${id}`).then((data) => {
-      setSession(data)
-      setLoading(false)
-    })
+    apiFetch<SessionDetail>(`/api/sessions/${id}`)
+      .then(setSession)
+      .catch((e: ApiError) => setError(e.detail))
+      .finally(() => setLoading(false))
   }, [id])
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">読み込み中...</div>
+  const handleDelete = async () => {
+    if (!confirm('この釣行を削除しますか? (釣果もすべて削除されます)')) return
+    try {
+      await apiFetch(`/api/sessions/${id}`, { method: 'DELETE' })
+      router.push('/')
+    } catch (e) {
+      alert(e instanceof ApiError ? e.detail : '削除に失敗しました')
+    }
+  }
+
+  if (loading) return <FullScreenSpinner />
+  if (error || !session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-red-600 text-sm">{error ?? '釣行が見つかりません'}</div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm px-6 py-4 flex items-center gap-3">
         <button onClick={() => router.back()} className="text-gray-500 hover:text-gray-700">← 戻る</button>
-        <h1 className="text-xl font-bold text-gray-800">{session.date} の釣行</h1>
+        <h1 className="text-xl font-bold text-gray-800 flex-1">{session.date} の釣行</h1>
+        <button
+          onClick={() => router.push(`/sessions/${id}/edit`)}
+          className="text-sm text-gray-500 hover:text-gray-700"
+        >編集</button>
+        <button
+          onClick={handleDelete}
+          className="text-sm text-red-500 hover:text-red-700"
+        >削除</button>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
@@ -52,13 +81,17 @@ export default function SessionDetailPage() {
 
           {session.catches?.length === 0 ? (
             <div className="text-center text-gray-400 py-10 bg-white rounded-xl shadow-sm">
-              <div className="text-4xl mb-2">🐟</div>
+              <div className="text-4xl mb-2" aria-hidden="true">🐟</div>
               <p className="text-sm">まだ釣果がありません</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {session.catches?.map((c: any) => (
-                <div key={c.id} className="bg-white rounded-xl shadow-sm p-4">
+              {session.catches?.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => router.push(`/sessions/${id}/catches/${c.id}/edit`)}
+                  className="bg-white rounded-xl shadow-sm p-4 cursor-pointer hover:shadow-md transition"
+                >
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-gray-800">{c.fish_species}</span>
                     <span className="text-sm text-gray-400">{c.is_released ? 'リリース' : 'キープ'}</span>

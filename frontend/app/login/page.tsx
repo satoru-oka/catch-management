@@ -32,7 +32,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="bg-white rounded-2xl shadow-md p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-4xl mb-2">🎣</div>
+          <div className="text-4xl mb-2" aria-hidden="true">🎣</div>
           <h1 className="text-2xl font-bold text-gray-800">釣果管理アプリ</h1>
           <p className="text-gray-500 text-sm mt-1">ログインしてください</p>
         </div>

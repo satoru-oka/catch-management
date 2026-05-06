@@ -119,7 +119,6 @@ CREATE POLICY "catches_own" ON catches
 
 - **Project URL**: `https://xxxx.supabase.co`
 - **anon public key**: `eyJ...`（長い文字列）
-- **service_role secret**: `eyJ...`（長い文字列・目のアイコンで表示）
 
 ---
 
@@ -131,7 +130,7 @@ CREATE POLICY "catches_own" ON catches
 cd backend
 python -m venv venv
 source venv/bin/activate  # Windowsは venv\Scripts\activate
-pip install fastapi uvicorn supabase python-dotenv "python-jose[cryptography]"
+pip install -r requirements.txt
 ```
 
 ### 3-2. 環境変数の設定
@@ -141,8 +140,9 @@ pip install fastapi uvicorn supabase python-dotenv "python-jose[cryptography]"
 ```
 SUPABASE_URL=https://xxxx.supabase.co
 SUPABASE_ANON_KEY=あなたのanon_key
-SERVICE_ROLE_KEY=あなたのservice_role_key
 ```
+
+> 認証はSupabaseが発行するユーザーJWTをFastAPIへBearerトークンで渡し、PostgRESTにそのまま流すことでRLSが効く構成です。`service_role` キーはバックエンドでは使用しません。
 
 ### 3-3. 起動
 

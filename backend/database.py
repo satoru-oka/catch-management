@@ -6,7 +6,9 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
-SERVICE_ROLE_KEY = os.getenv("SERVICE_ROLE_KEY")
 
+if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+    raise RuntimeError("SUPABASE_URL / SUPABASE_ANON_KEY が設定されていません")
+
+# 認証 (JWT検証) 専用の共有クライアント。DBアクセスはRLSが効くユーザースコープ版を使う。
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-supabase_admin: Client = create_client(SUPABASE_URL, SERVICE_ROLE_KEY)
