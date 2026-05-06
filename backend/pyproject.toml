@@ -19,3 +19,11 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+markers = [
+    "integration: 実 Supabase に接続する結合テスト。TEST_SUPABASE_* 環境変数が無いと自動 skip。",
+]
