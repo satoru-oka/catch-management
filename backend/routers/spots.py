@@ -1,7 +1,8 @@
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
 from supabase import Client
+
 from auth import get_current_user, get_supabase
 
 router = APIRouter(prefix="/api/spots", tags=["spots"])
@@ -9,18 +10,18 @@ router = APIRouter(prefix="/api/spots", tags=["spots"])
 
 class SpotCreate(BaseModel):
     name: str
-    river_name: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    notes: Optional[str] = None
+    river_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    notes: str | None = None
 
 
 class SpotUpdate(BaseModel):
-    name: Optional[str] = None
-    river_name: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    notes: Optional[str] = None
+    name: str | None = None
+    river_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    notes: str | None = None
 
 
 @router.get("/")

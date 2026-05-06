@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from postgrest.exceptions import APIError as PostgrestAPIError
 
-from routers import spots, sessions, catches, lures
+from routers import catches, lures, sessions, spots
 
 app = FastAPI(title="釣果管理アプリ API")
 

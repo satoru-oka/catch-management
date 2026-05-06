@@ -93,7 +93,7 @@ def test_update_session_strips_none(client, fake_db):
 
 
 def test_update_session_with_date_field(client, fake_db):
-    """`date` フィールドのシャドーイング修正 (docs/known-issues.md ISSUE-001) のリグレッションテスト。"""
+    """`date` シャドーイング修正のリグレッションテスト (docs/known-issues.md ISSUE-001)。"""
     fake_db.queue_result([{"id": "ses1", "date": "2026-05-07"}])
 
     res = client.put("/api/sessions/ses1", json={"date": "2026-05-07"})

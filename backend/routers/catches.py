@@ -1,8 +1,9 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
-from datetime import datetime
 from supabase import Client
+
 from auth import get_supabase
 
 router = APIRouter(prefix="/api", tags=["catches"])
@@ -10,26 +11,26 @@ router = APIRouter(prefix="/api", tags=["catches"])
 
 class CatchCreate(BaseModel):
     fish_species: str
-    length_cm: Optional[float] = None
-    weight_g: Optional[float] = None
-    lure_id: Optional[str] = None
-    lure_name: Optional[str] = None
-    lure_color: Optional[str] = None
-    caught_at: Optional[datetime] = None
-    is_released: Optional[bool] = True
-    notes: Optional[str] = None
+    length_cm: float | None = None
+    weight_g: float | None = None
+    lure_id: str | None = None
+    lure_name: str | None = None
+    lure_color: str | None = None
+    caught_at: datetime | None = None
+    is_released: bool | None = True
+    notes: str | None = None
 
 
 class CatchUpdate(BaseModel):
-    fish_species: Optional[str] = None
-    length_cm: Optional[float] = None
-    weight_g: Optional[float] = None
-    lure_id: Optional[str] = None
-    lure_name: Optional[str] = None
-    lure_color: Optional[str] = None
-    caught_at: Optional[datetime] = None
-    is_released: Optional[bool] = None
-    notes: Optional[str] = None
+    fish_species: str | None = None
+    length_cm: float | None = None
+    weight_g: float | None = None
+    lure_id: str | None = None
+    lure_name: str | None = None
+    lure_color: str | None = None
+    caught_at: datetime | None = None
+    is_released: bool | None = None
+    notes: str | None = None
 
 
 @router.post("/sessions/{session_id}/catches")
@@ -51,8 +52,8 @@ def create_catch(
 @router.get("/catches")
 def list_catches(
     db: Client = Depends(get_supabase),
-    fish_species: Optional[str] = None,
-    lure_name: Optional[str] = None,
+    fish_species: str | None = None,
+    lure_name: str | None = None,
 ):
     query = db.table("catches").select("*, sessions(date, spot_id)")
     if fish_species:
