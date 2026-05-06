@@ -35,12 +35,12 @@ class FakeQueryBuilder:
     FakeSupabase に登録された次のレスポンスを返却する。
     """
 
-    def __init__(self, db: "FakeSupabase", table: str):
+    def __init__(self, db: FakeSupabase, table: str):
         self._db = db
         self._table = table
         self._ops: list[tuple[str, tuple, dict]] = []
 
-    def _record(self, name: str, *args, **kwargs) -> "FakeQueryBuilder":
+    def _record(self, name: str, *args, **kwargs) -> FakeQueryBuilder:
         self._ops.append((name, args, kwargs))
         return self
 

@@ -20,7 +20,7 @@ def test_lure_full_lifecycle(auth_client, integration_user):
     # LIST
     res = auth_client.get("/api/lures/")
     assert res.status_code == 200
-    assert any(l["id"] == lure_id for l in res.json())
+    assert any(item["id"] == lure_id for item in res.json())
 
     # UPDATE
     res = auth_client.put(f"/api/lures/{lure_id}", json={"color": "ピンク"})
