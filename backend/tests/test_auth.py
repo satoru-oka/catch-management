@@ -180,3 +180,97 @@ def test_postgrest_other_error_is_mapped_to_500():
         assert res.json() == {"detail": "Database error"}
     finally:
         app.dependency_overrides.clear()
+
+
+def test_postgrest_other_error_is_logged(caplog):
+    """500 にマップされるエラーはサーバログにトレースバック付きで残ること。"""
+    import logging
+
+    from postgrest.exceptions import APIError as PostgrestAPIError
+
+    from auth import get_supabase
+
+    class _RaisingClient:
+        def table(self, _name):
+            raise PostgrestAPIError(
+                {"message": "permission denied", "code": "42501", "hint": None, "details": None}
+            )
+
+    app.dependency_overrides[get_supabase] = lambda: _RaisingClient()
+    try:
+        with caplog.at_level(logging.ERROR, logger="main"):
+            with TestClient(app, headers={"Authorization": "Bearer x"}) as c:
+                c.get("/api/spots/")
+        assert any(
+            "Unhandled PostgREST error" in r.getMessage() for r in caplog.records
+        ), "logger.exception が呼ばれていない"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_unhandled_exception_returns_500_json():
+    """ハンドラに無い例外もデフォルト HTML ではなく 500 JSON で返ること。"""
+    from auth import get_supabase
+
+    class _BoomClient:
+        def table(self, _name):
+            raise RuntimeError("unexpected boom")
+
+    app.dependency_overrides[get_supabase] = lambda: _BoomClient()
+    try:
+        with TestClient(
+            app,
+            raise_server_exceptions=False,
+            headers={"Authorization": "Bearer x"},
+        ) as c:
+            res = c.get("/api/spots/")
+        assert res.status_code == 500
+        assert res.json() == {"detail": "Internal server error"}
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_unhandled_exception_is_logged(caplog):
+    """ハンドラに無い例外もサーバログに残ること。"""
+    import logging
+
+    from auth import get_supabase
+
+    class _BoomClient:
+        def table(self, _name):
+            raise RuntimeError("unexpected boom")
+
+    app.dependency_overrides[get_supabase] = lambda: _BoomClient()
+    try:
+        with caplog.at_level(logging.ERROR, logger="main"):
+            with TestClient(
+                app,
+                raise_server_exceptions=False,
+                headers={"Authorization": "Bearer x"},
+            ) as c:
+                c.get("/api/spots/")
+        assert any(
+            "Unhandled exception" in r.getMessage() for r in caplog.records
+        ), "logger.exception が呼ばれていない"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_allowed_origins_env_overrides_default(monkeypatch):
+    """ALLOWED_ORIGINS env が main をリロード後に反映されること。"""
+    import importlib
+    import sys
+
+    monkeypatch.setenv("ALLOWED_ORIGINS", "https://prod.example.com,https://staging.example.com")
+    # 既存の main モジュールを破棄して再ロード
+    sys.modules.pop("main", None)
+    reloaded = importlib.import_module("main")
+    try:
+        assert reloaded.allowed_origins == [
+            "https://prod.example.com",
+            "https://staging.example.com",
+        ]
+    finally:
+        # 他のテストへの副作用を避けるため元に戻す
+        sys.modules.pop("main", None)
+        importlib.import_module("main")
