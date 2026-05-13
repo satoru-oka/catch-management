@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同じブランチで連続して push されたら古い実行はキャンセルする
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run pytest
+        # database.py が import 時に環境変数を要求する。CI では実 Supabase に
+        # 接続しないので tests/conftest.py で設定するダミーと同じ値を流す。
+        env:
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_ANON_KEY: test-anon-key
+        run: pytest
+
+  frontend:
+    name: frontend (vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run vitest
+        run: npm test
+
+  integration:
+    name: backend integration (real Supabase)
+    runs-on: ubuntu-latest
+    # main へのマージと、ベースが main の PR でのみ実行 (fork PR は Secrets を読めないため除外)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    # テスト用 Supabase プロジェクト 1 つに対し並列で叩くとデータ衝突しないが
+    # API レート的に直列が無難。同一ブランチ内でも 1 本ずつ流す。
+    concurrency:
+      group: ci-integration-${{ github.ref }}
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run pytest (integration only)
+        env:
+          # database.py が import 時に要求するダミー値 (integration fixture が
+          # テスト用 URL/KEY に差し替える)。
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_ANON_KEY: test-anon-key
+          # 実テスト用 Supabase の Secrets。未設定なら fixture が auto-skip する。
+          TEST_SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          TEST_SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+          TEST_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+        run: pytest -m integration

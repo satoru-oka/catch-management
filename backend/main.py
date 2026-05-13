@@ -1,21 +1,59 @@
-from fastapi import FastAPI
+import logging
+import os
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from routers import spots, sessions, catches, lures
+from fastapi.responses import JSONResponse
+from postgrest.exceptions import APIError as PostgrestAPIError
+
+from routers import catches, lures, sessions, spots
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="釣果管理アプリ API")
 
+# 環境ごとに ALLOWED_ORIGINS=https://app.example.com,https://staging.example.com で上書き。
+# 未設定時はローカル開発の Next.js 既定ポートのみ許可。
+_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+allowed_origins = [o.strip() for o in _origins_env.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(spots.router)
-app.include_router(sessions.router)
+
+# JWT 検証エラー (PostgREST が出す PGRST301/302) は HTTP 401 にマップする。
+# GET/PUT/DELETE 系は `get_current_user` 依存を持たず JWT をそのまま PostgREST に
+# 転送する設計のため、ハンドラ無しでは postgrest.APIError が 500 で漏れてしまう。
+# 詳細: docs/known-issues.md ISSUE-003。
+@app.exception_handler(PostgrestAPIError)
+async def _postgrest_api_error_handler(_request: Request, exc: PostgrestAPIError):
+    code = getattr(exc, "code", None)
+    if code in {"PGRST301", "PGRST302"}:
+        return JSONResponse(status_code=401, content={"detail": "Invalid token"})
+    # それ以外の DB / クエリエラーはサーバ側障害として 500 のまま (詳細は隠す)。
+    # ただし、原因調査ができるようサーバログにはトレースバック付きで残す。
+    logger.exception("Unhandled PostgREST error: code=%s", code)
+    return JSONResponse(status_code=500, content={"detail": "Database error"})
+
+
+# 上記で捕捉できない想定外の例外もすべて JSON で返す。
+# FastAPI のデフォルトは HTML レスポンスのため、フロントの apiFetch が
+# res.json() で SyntaxError になり「読み込み中...」のまま固まるのを防ぐ。
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(_request: Request, _exc: Exception):
+    logger.exception("Unhandled exception")
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
 app.include_router(catches.router)
 app.include_router(lures.router)
+app.include_router(sessions.router)
+app.include_router(spots.router)
 
 
 @app.get("/")

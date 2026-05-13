@@ -11,7 +11,8 @@ target-version = "py310"
 [tool.ruff.lint]
 # pycodestyle / pyflakes / isort / bugbear / pyupgrade
 select = ["E", "F", "W", "I", "B", "UP"]
-ignore = []
+# B008: FastAPI の Depends/Security はデフォルト引数で関数呼び出しするのが正規パターン
+ignore = ["B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
@@ -19,3 +20,11 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+markers = [
+    "integration: 実 Supabase に接続する結合テスト。TEST_SUPABASE_* 環境変数が無いと自動 skip。",
+]

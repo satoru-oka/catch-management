@@ -1,7 +1,8 @@
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
 from supabase import Client
+
 from auth import get_current_user, get_supabase
 
 router = APIRouter(prefix="/api/lures", tags=["lures"])
@@ -9,20 +10,20 @@ router = APIRouter(prefix="/api/lures", tags=["lures"])
 
 class LureCreate(BaseModel):
     name: str
-    type: Optional[str] = None
-    color: Optional[str] = None
-    length_mm: Optional[float] = None
-    weight_g: Optional[float] = None
-    notes: Optional[str] = None
+    type: str | None = None
+    color: str | None = None
+    length_mm: float | None = None
+    weight_g: float | None = None
+    notes: str | None = None
 
 
 class LureUpdate(BaseModel):
-    name: Optional[str] = None
-    type: Optional[str] = None
-    color: Optional[str] = None
-    length_mm: Optional[float] = None
-    weight_g: Optional[float] = None
-    notes: Optional[str] = None
+    name: str | None = None
+    type: str | None = None
+    color: str | None = None
+    length_mm: float | None = None
+    weight_g: float | None = None
+    notes: str | None = None
 
 
 @router.get("/")

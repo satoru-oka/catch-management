@@ -12,6 +12,7 @@ env/
 .env
 .env.*
 !.env.example
+!.env.test.example
 
 # IDE / Editor
 .vscode/
@@ -19,12 +20,6 @@ env/
 
 # Claude Code workspace settings (各自ローカル)
 .claude/
-
-# 個人メモ / クレデンシャルを含む scratch (誤コミット防止のセーフティネット)
-# 認証情報は ~/Documents/ など repo 外に置くこと。
-docs/catch-management-test.md
-docs/*-secrets.md
-docs/*-credentials.md
 
 # OS files
 .DS_Store

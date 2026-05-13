@@ -137,15 +137,15 @@ export default function LuresPage() {
           <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="font-bold text-gray-700">{editingId ? '編集' : '新規追加'}</h2>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ルアー名 *</label>
-              <input type="text" name="name" value={form.name} onChange={handleChange}
+              <label htmlFor="lure-form-name" className="block text-sm font-medium text-gray-700 mb-1">ルアー名 *</label>
+              <input type="text" id="lure-form-name" name="name" value={form.name} onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Dコンタクト63" required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">種別</label>
-                <select name="type" value={form.type} onChange={handleChange}
+                <label htmlFor="lure-form-type" className="block text-sm font-medium text-gray-700 mb-1">種別</label>
+                <select id="lure-form-type" name="type" value={form.type} onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">選択</option>
                   <option>ミノー</option><option>スプーン</option><option>スピナー</option>
@@ -153,29 +153,29 @@ export default function LuresPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">カラー</label>
-                <input type="text" name="color" value={form.color} onChange={handleChange}
+                <label htmlFor="lure-form-color" className="block text-sm font-medium text-gray-700 mb-1">カラー</label>
+                <input type="text" id="lure-form-color" name="color" value={form.color} onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="チャート" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">長さ (mm)</label>
-                <input type="number" name="length_mm" value={form.length_mm} onChange={handleChange}
+                <label htmlFor="lure-form-length_mm" className="block text-sm font-medium text-gray-700 mb-1">長さ (mm)</label>
+                <input type="number" id="lure-form-length_mm" name="length_mm" value={form.length_mm} onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="63" step="0.1" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">重さ (g)</label>
-                <input type="number" name="weight_g" value={form.weight_g} onChange={handleChange}
+                <label htmlFor="lure-form-weight_g" className="block text-sm font-medium text-gray-700 mb-1">重さ (g)</label>
+                <input type="number" id="lure-form-weight_g" name="weight_g" value={form.weight_g} onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="4.5" step="0.1" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
-              <textarea name="notes" value={form.notes} onChange={handleChange} rows={2}
+              <label htmlFor="lure-form-notes" className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
+              <textarea id="lure-form-notes" name="notes" value={form.notes} onChange={handleChange} rows={2}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="使用感など..." />
             </div>

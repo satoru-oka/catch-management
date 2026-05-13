@@ -1,33 +1,38 @@
+import datetime as dt
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
-from datetime import date, time
 from supabase import Client
+
 from auth import get_current_user, get_supabase
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 
+# NOTE: 型は `datetime.date` / `datetime.time` をモジュール経由で参照する。
+# `from datetime import date` でインポートするとフィールド名 `date` が型名を
+# シャドーし、Python 3.14 の PEP 649 遅延アノテーション下で `Optional[date] = None`
+# の annotation が `NoneType` に解決されてしまう。詳細は docs/known-issues.md。
 class SessionCreate(BaseModel):
-    spot_id: Optional[str] = None
-    date: date
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    water_level: Optional[str] = None
-    water_clarity: Optional[str] = None
-    weather: Optional[str] = None
-    notes: Optional[str] = None
+    spot_id: str | None = None
+    date: dt.date
+    start_time: dt.time | None = None
+    end_time: dt.time | None = None
+    water_level: str | None = None
+    water_clarity: str | None = None
+    weather: str | None = None
+    notes: str | None = None
 
 
 class SessionUpdate(BaseModel):
-    spot_id: Optional[str] = None
-    date: Optional[date] = None
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    water_level: Optional[str] = None
-    water_clarity: Optional[str] = None
-    weather: Optional[str] = None
-    notes: Optional[str] = None
+    spot_id: str | None = None
+    date: dt.date | None = None
+    start_time: dt.time | None = None
+    end_time: dt.time | None = None
+    water_level: str | None = None
+    water_clarity: str | None = None
+    weather: str | None = None
+    notes: str | None = None
 
 
 @router.get("/")

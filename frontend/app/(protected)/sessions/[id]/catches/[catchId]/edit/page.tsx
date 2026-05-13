@@ -125,27 +125,27 @@ export default function EditCatchPage() {
       <main className="max-w-2xl mx-auto px-4 py-6">
         <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">魚種 *</label>
-            <input type="text" name="fish_species" value={form.fish_species} onChange={handleChange}
+            <label htmlFor="catch-edit-fish_species" className="block text-sm font-medium text-gray-700 mb-1">魚種 *</label>
+            <input type="text" id="catch-edit-fish_species" name="fish_species" value={form.fish_species} onChange={handleChange}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">サイズ (cm)</label>
-              <input type="number" name="length_cm" value={form.length_cm} onChange={handleChange}
+              <label htmlFor="catch-edit-length_cm" className="block text-sm font-medium text-gray-700 mb-1">サイズ (cm)</label>
+              <input type="number" id="catch-edit-length_cm" name="length_cm" value={form.length_cm} onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" step="0.1" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">重さ (g)</label>
-              <input type="number" name="weight_g" value={form.weight_g} onChange={handleChange}
+              <label htmlFor="catch-edit-weight_g" className="block text-sm font-medium text-gray-700 mb-1">重さ (g)</label>
+              <input type="number" id="catch-edit-weight_g" name="weight_g" value={form.weight_g} onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" step="0.1" />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ルアー (登録済から選択)</label>
-            <select name="lure_id" value={form.lure_id} onChange={handleLureSelect}
+            <label htmlFor="catch-edit-lure_id" className="block text-sm font-medium text-gray-700 mb-1">ルアー (登録済から選択)</label>
+            <select id="catch-edit-lure_id" name="lure_id" value={form.lure_id} onChange={handleLureSelect}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="">選択しない (自由入力)</option>
               {lures.map((l) => (
@@ -158,20 +158,20 @@ export default function EditCatchPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ルアー名</label>
-              <input type="text" name="lure_name" value={form.lure_name} onChange={handleChange}
+              <label htmlFor="catch-edit-lure_name" className="block text-sm font-medium text-gray-700 mb-1">ルアー名</label>
+              <input type="text" id="catch-edit-lure_name" name="lure_name" value={form.lure_name} onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">カラー</label>
-              <input type="text" name="lure_color" value={form.lure_color} onChange={handleChange}
+              <label htmlFor="catch-edit-lure_color" className="block text-sm font-medium text-gray-700 mb-1">カラー</label>
+              <input type="text" id="catch-edit-lure_color" name="lure_color" value={form.lure_color} onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">リリース / キープ</label>
-            <select name="is_released" value={form.is_released} onChange={handleChange}
+            <label htmlFor="catch-edit-is_released" className="block text-sm font-medium text-gray-700 mb-1">リリース / キープ</label>
+            <select id="catch-edit-is_released" name="is_released" value={form.is_released} onChange={handleChange}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="true">リリース</option>
               <option value="false">キープ</option>
@@ -179,8 +179,8 @@ export default function EditCatchPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
-            <textarea name="notes" value={form.notes} onChange={handleChange} rows={3}
+            <label htmlFor="catch-edit-notes" className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
+            <textarea id="catch-edit-notes" name="notes" value={form.notes} onChange={handleChange} rows={3}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 

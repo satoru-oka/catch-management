@@ -1,7 +1,8 @@
 from fastapi import HTTPException, Security
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from supabase import create_client, Client
-from database import supabase, SUPABASE_URL, SUPABASE_ANON_KEY
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from supabase import Client, create_client
+
+from database import SUPABASE_ANON_KEY, SUPABASE_URL, supabase
 
 security = HTTPBearer()
 
@@ -15,8 +16,9 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
         return str(response.user.id)
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        # 元の例外はサーバ側ログにチェーン保持しつつ、レスポンスは「Invalid token」固定
+        raise HTTPException(status_code=401, detail="Invalid token") from e
 
 
 def get_supabase(

@@ -1,101 +1,328 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { apiFetch, ApiError } from '@/lib/api'
 import { FullScreenSpinner } from '@/lib/Loading'
-import type { SessionWithSpot } from '@/lib/types'
+import type { Catch, SessionWithSpot } from '@/lib/types'
+
+type CatchWithSession = Catch & {
+  sessions: { date: string; spot_id: string | null } | null
+}
+
+type Profile = {
+  name: string
+  avatarUrl: string | null
+}
+
+const WEEKDAY = ['日', '月', '火', '水', '木', '金', '土']
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function formatJpDate(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getMonth() + 1}月${d.getDate()}日(${WEEKDAY[d.getDay()]})`
+}
+
+function catchDate(c: CatchWithSession): string {
+  return (c.caught_at ?? c.sessions?.date ?? '').slice(0, 10)
+}
 
 export default function HomePage() {
+  const [catches, setCatches] = useState<CatchWithSession[]>([])
   const [sessions, setSessions] = useState<SessionWithSpot[]>([])
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
 
   useEffect(() => {
-    apiFetch<SessionWithSpot[]>('/api/sessions')
-      .then((data) => setSessions(data))
+    Promise.all([
+      apiFetch<CatchWithSession[]>('/api/catches'),
+      apiFetch<SessionWithSpot[]>('/api/sessions'),
+      createClient().auth.getUser(),
+    ])
+      .then(([c, s, { data }]) => {
+        setCatches(c)
+        setSessions(s)
+        const u = data.user
+        const meta = (u?.user_metadata ?? {}) as Record<string, unknown>
+        const name =
+          (typeof meta.display_name === 'string' && meta.display_name) ||
+          (typeof meta.full_name === 'string' && meta.full_name) ||
+          u?.email?.split('@')[0] ||
+          'ゲスト'
+        const avatarUrl = typeof meta.avatar_url === 'string' ? meta.avatar_url : null
+        setProfile({ name, avatarUrl })
+      })
       .catch((e: ApiError) => setError(e.detail))
       .finally(() => setLoading(false))
   }, [])
 
-  const handleLogout = async () => {
-    await createClient().auth.signOut()
-    router.push('/login')
-  }
-
   if (loading) return <FullScreenSpinner />
 
+  const today = todayIso()
+  const monthStart = today.slice(0, 7) + '-01'
+
+  const todaysCatches = catches.filter((c) => catchDate(c) === today)
+  const monthlyCatches = catches.filter((c) => catchDate(c) >= monthStart)
+
+  const todayCount = todaysCatches.length
+  const todayWeightKg = todaysCatches.reduce((sum, c) => sum + (c.weight_g ?? 0), 0) / 1000
+  const todayMaxCm = todaysCatches.reduce((m, c) => Math.max(m, c.length_cm ?? 0), 0)
+
+  const lifetime = catches.length
+  const monthly = monthlyCatches.length
+
+  const maxCatch = catches.reduce<CatchWithSession | null>((max, c) => {
+    if ((c.length_cm ?? 0) > (max?.length_cm ?? 0)) return c
+    return max
+  }, null)
+
+  const sessionById = new Map(sessions.map((s) => [s.id, s]))
+  const recent = catches.slice(0, 3)
+
+  const greetingName = profile?.name ?? 'ゲスト'
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl" aria-hidden="true">🎣</span>
-          <h1 className="text-xl font-bold text-gray-800">釣果管理</h1>
+    <div className="min-h-screen bg-sky-50">
+      <header className="bg-gradient-to-br from-sky-400 to-blue-500 text-white px-6 pt-8 pb-12 rounded-b-3xl shadow-md">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold tracking-wide flex items-center gap-2">
+              <span aria-hidden="true">🐟</span>
+              <span>釣果ログ</span>
+            </h1>
+            <p className="text-sm mt-1 text-sky-50 truncate">
+              こんにちは、{greetingName}さん！
+            </p>
+          </div>
+          <Link
+            href="/settings"
+            aria-label="設定"
+            className="shrink-0"
+          >
+            {profile?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profile.avatarUrl}
+                alt=""
+                className="w-14 h-14 rounded-full border-2 border-white object-cover shadow"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-white/30 border-2 border-white flex items-center justify-center text-xl font-bold shadow">
+                {greetingName[0]}
+              </div>
+            )}
+          </Link>
         </div>
-        <nav className="flex items-center gap-3" aria-label="メインナビゲーション">
-          <button onClick={() => router.push('/spots')} className="text-sm text-gray-500 hover:text-gray-700" aria-label="ポイント管理ページへ">
-            <span aria-hidden="true">📍</span> ポイント
-          </button>
-          <button onClick={() => router.push('/lures')} className="text-sm text-gray-500 hover:text-gray-700" aria-label="ルアー管理ページへ">
-            <span aria-hidden="true">🎣</span> ルアー
-          </button>
-          <button onClick={() => router.push('/stats')} className="text-sm text-gray-500 hover:text-gray-700" aria-label="統計ページへ">
-            <span aria-hidden="true">📊</span> 統計
-          </button>
-          <button onClick={handleLogout} className="text-sm text-gray-500 hover:text-gray-700">
-            ログアウト
-          </button>
-        </nav>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-700">釣行履歴</h2>
-          <button
-            onClick={() => router.push('/sessions/new')}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg"
-          >
-            ＋ 新規釣行
-          </button>
-        </div>
-
+      <main className="max-w-2xl mx-auto px-4 -mt-6 space-y-4">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
             読み込みに失敗しました: {error}
           </div>
         )}
 
-        {sessions.length === 0 ? (
-          <div className="text-center text-gray-400 py-16">
-            <div className="text-5xl mb-4" aria-hidden="true">🎣</div>
-            <p>釣行記録がまだありません</p>
-            <p className="text-sm mt-1">「新規釣行」から記録を始めましょう</p>
+        <section className="bg-white rounded-2xl shadow-md p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-500 flex items-center justify-center text-xs">
+                📅
+              </span>
+              今日の釣果
+            </h2>
+            <span className="text-xs text-gray-500 bg-sky-50 rounded-full px-3 py-1">
+              {formatJpDate(today)}
+            </span>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {sessions.map((session) => (
-              <div
-                key={session.id}
-                onClick={() => router.push(`/sessions/${session.id}`)}
-                className="bg-white rounded-xl shadow-sm p-4 cursor-pointer hover:shadow-md transition"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-gray-800">{session.date}</span>
-                  <span className="text-sm text-gray-400">{session.weather ?? '—'}</span>
-                </div>
-                <div className="text-sm text-gray-500 mt-1">
-                  {session.spots?.river_name ?? '場所未設定'} {session.spots?.name ? `/ ${session.spots.name}` : ''}
-                </div>
-                <div className="text-sm text-gray-400 mt-1">
-                  水況: {session.water_level ?? '—'} / {session.water_clarity ?? '—'}
-                </div>
-              </div>
-            ))}
+          <div className="grid grid-cols-3 gap-2 text-center mb-4">
+            <Stat label="釣果数" value={`${todayCount}`} unit="匹" />
+            <Stat label="合計重量" value={todayWeightKg.toFixed(2)} unit="kg" />
+            <Stat label="最大サイズ" value={todayMaxCm ? `${todayMaxCm}` : '—'} unit="cm" />
           </div>
-        )}
+          <Link
+            href="/sessions/new"
+            className="block w-full text-center bg-gradient-to-r from-sky-400 to-blue-500 text-white font-bold py-3 rounded-xl shadow hover:opacity-95"
+          >
+            ＋ 釣果を記録
+          </Link>
+        </section>
+
+        <section className="grid grid-cols-3 gap-3">
+          <KpiCard
+            icon="🐟"
+            label="総釣果数"
+            value={`${lifetime}`}
+            unit="匹"
+            footer="すべての記録"
+            href="/stats"
+            tone="sky"
+          />
+          <KpiCard
+            icon="📅"
+            label="今月の釣果"
+            value={`${monthly}`}
+            unit="匹"
+            footer={`${monthStart.slice(5, 7)}月`}
+            href="/stats"
+            tone="emerald"
+          />
+          <KpiCard
+            icon="🏆"
+            label="最大サイズ"
+            value={maxCatch?.length_cm ? `${maxCatch.length_cm}` : '—'}
+            unit="cm"
+            footer={maxCatch?.fish_species ?? '—'}
+            href="/stats"
+            tone="violet"
+          />
+        </section>
+
+        <section className="bg-white rounded-2xl shadow-md p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-gray-800">最近の釣果</h2>
+            <Link href="/stats" className="text-sm text-sky-600">
+              すべて見る ›
+            </Link>
+          </div>
+          {recent.length === 0 ? (
+            <p className="text-sm text-gray-400 py-6 text-center">
+              釣果記録がまだありません
+            </p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {recent.map((c) => {
+                const parent = sessionById.get(c.session_id)
+                const spot = parent?.spots ?? null
+                const date = c.sessions?.date ?? catchDate(c)
+                return (
+                  <li key={c.id} className="py-3 flex items-center gap-3">
+                    {c.photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={c.photo_url}
+                        alt=""
+                        className="w-14 h-14 rounded-lg object-cover shrink-0"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-lg bg-sky-100 flex items-center justify-center text-2xl shrink-0">
+                        🐟
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-gray-800 truncate">
+                        {c.fish_species}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-0.5 truncate">
+                        {date && <span>📅 {date}</span>}
+                        {spot && (
+                          <span> · {spot.river_name ?? spot.name}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-bold text-gray-800">
+                        {c.length_cm ?? '—'}
+                        <span className="text-xs font-normal text-gray-400 ml-0.5">
+                          cm
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {c.weight_g != null
+                          ? `${(c.weight_g / 1000).toFixed(2)}kg`
+                          : '—'}
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+
+        <section className="bg-white rounded-2xl shadow-md p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-gray-800">
+              今日の釣りの状況
+            </h2>
+            <span className="text-xs text-gray-400">準備中</span>
+          </div>
+          <p className="text-sm text-gray-400 py-4 text-center">
+            天気・潮汐・水温は外部 API 接続後に表示予定
+          </p>
+        </section>
       </main>
     </div>
+  )
+}
+
+function Stat({
+  label,
+  value,
+  unit,
+}: {
+  label: string
+  value: string
+  unit: string
+}) {
+  return (
+    <div>
+      <div className="text-xs text-gray-500 mb-1">{label}</div>
+      <div className="text-2xl font-bold text-gray-800 leading-none">
+        {value}
+        <span className="text-xs font-normal text-gray-400 ml-0.5">{unit}</span>
+      </div>
+    </div>
+  )
+}
+
+type Tone = 'sky' | 'emerald' | 'violet'
+
+function KpiCard({
+  icon,
+  label,
+  value,
+  unit,
+  footer,
+  href,
+  tone,
+}: {
+  icon: string
+  label: string
+  value: string
+  unit: string
+  footer: string
+  href: string
+  tone: Tone
+}) {
+  const toneClasses: Record<Tone, string> = {
+    sky: 'bg-sky-100 text-sky-600',
+    emerald: 'bg-emerald-100 text-emerald-600',
+    violet: 'bg-violet-100 text-violet-600',
+  }
+  return (
+    <Link
+      href={href}
+      className="bg-white rounded-2xl shadow-sm p-3 flex flex-col hover:shadow-md transition"
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <span
+          className={`w-7 h-7 rounded-full flex items-center justify-center text-sm ${toneClasses[tone]}`}
+          aria-hidden="true"
+        >
+          {icon}
+        </span>
+        <span className="text-xs text-gray-500 truncate">{label}</span>
+      </div>
+      <div className="text-xl font-bold text-gray-800 leading-tight">
+        {value}
+        <span className="text-xs font-normal text-gray-400 ml-0.5">{unit}</span>
+      </div>
+      <div className="text-xs text-gray-400 mt-1 truncate">{footer} ›</div>
+    </Link>
   )
 }
