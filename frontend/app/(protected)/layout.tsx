@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { FullScreenSpinner } from '@/lib/Loading'
+import BottomNav from '@/components/BottomNav'
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -34,5 +35,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   if (!ready) return <FullScreenSpinner />
 
-  return <>{children}</>
+  return (
+    <>
+      <div className="pb-20">{children}</div>
+      <BottomNav />
+    </>
+  )
 }
