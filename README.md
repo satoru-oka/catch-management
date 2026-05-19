@@ -1,302 +1,167 @@
-# catch-management ローカルセットアップ手順
+# catch-management
+
+釣行、釣果、ポイント、ルアーを記録し、あとから統計で振り返るための釣果管理アプリです。
+
+フロントエンドは Next.js、バックエンドは FastAPI、認証とデータ保存は Supabase を使います。バックエンドは Supabase の `anon` key だけを持ち、ブラウザから受け取ったユーザー JWT を PostgREST に中継することで Row Level Security に認可を任せる構成です。
+
+## 主な機能
+
+- メールアドレス / パスワードによるログイン
+- ポイント管理
+- ルアー管理
+- 釣行の記録、編集、削除
+- 釣行に紐づく釣果の記録、編集、削除
+- 月別、ルアー別の統計表示
+- Supabase RLS によるユーザーごとのデータ分離
+
+## 使用技術
+
+| 領域 | 技術 |
+|---|---|
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS v4, Recharts |
+| Backend | FastAPI, Pydantic v2, supabase-py |
+| Auth / DB | Supabase Auth, PostgreSQL, Row Level Security, PostgREST |
+| Test | pytest, FastAPI TestClient, Vitest, Testing Library |
+| CI | GitHub Actions |
 
 ## 構成
 
-- **バックエンド**: FastAPI（Python）
-- **フロントエンド**: Next.js（TypeScript / Tailwind CSS）
-- **DB・認証・ストレージ**: Supabase
+```text
+.
+├── backend/                 # FastAPI API
+│   ├── main.py              # FastAPI app, CORS, exception handlers
+│   ├── auth.py              # JWT 検証と user-scoped Supabase client
+│   ├── database.py          # Supabase URL / anon key と認証検証用 client
+│   ├── routers/             # spots / sessions / catches / lures
+│   └── tests/               # pytest unit + integration tests
+├── frontend/                # Next.js App Router app
+│   ├── app/                 # pages and layouts
+│   ├── components/          # shared UI components
+│   ├── lib/                 # apiFetch, Supabase client, shared types
+│   └── tests/               # Vitest + Testing Library
+├── docs/
+│   ├── architecture.md      # architecture snapshot
+│   ├── database-setup.md    # Supabase schema and setup details
+│   ├── testing.md           # test strategy and CI details
+│   ├── known-issues.md      # bug history
+│   └── code-review.md       # review/refactoring backlog
+└── .github/workflows/ci.yml
+```
 
----
+## セットアップ
 
-## 1. リポジトリのクローン
+### 1. clone
 
 ```bash
-git clone https://github.com/your-username/catch-management.git
+git clone https://github.com/satoru-oka/catch-management.git
 cd catch-management
 ```
 
----
+### 2. Supabase
 
-## 2. Supabase セットアップ
+Supabase プロジェクトを作成し、テーブルと RLS ポリシーを作成します。SQL と詳しい手順は [docs/database-setup.md](docs/database-setup.md) を参照してください。
 
-### 2-1. アカウント・プロジェクト作成
+開発用のバックエンドでは `service_role` key を使いません。`service_role` key は実 Supabase を使う結合テストで、使い捨てユーザーを作成 / 削除するためだけに使います。
 
-1. https://supabase.com にアクセスしてアカウント作成（GitHubログイン推奨）
-2. 「New project」をクリック
-   - Name: `catch-management`
-   - Region: `Northeast Asia (Tokyo)`
-   - Plan: Free
+### 3. Backend
 
-### 2-2. テーブル作成
-
-管理画面の「SQL Editor」→「New query」に以下をまるごと貼り付けて「Run」：
-
-```sql
--- ルアーマスターテーブル
-CREATE TABLE lures (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  name TEXT NOT NULL,
-  type TEXT CHECK (type IN ('ミノー', 'スプーン', 'スピナー', 'クランク', 'その他')),
-  color TEXT,
-  length_mm NUMERIC(5,1),
-  weight_g NUMERIC(5,1),
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ポイントテーブル
-CREATE TABLE spots (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  name TEXT NOT NULL,
-  river_name TEXT,
-  latitude DOUBLE PRECISION,
-  longitude DOUBLE PRECISION,
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 釣行テーブル
-CREATE TABLE sessions (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  spot_id UUID REFERENCES spots(id) ON DELETE SET NULL,
-  date DATE NOT NULL,
-  start_time TIME,
-  end_time TIME,
-  water_level TEXT CHECK (water_level IN ('低水', '平水', '増水', '大増水')),
-  water_clarity TEXT CHECK (water_clarity IN ('クリア', 'ステイン', '笹濁り', '濁り')),
-  weather TEXT CHECK (weather IN ('晴れ', '曇り', '雨', '雪')),
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 釣果テーブル
-CREATE TABLE catches (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  session_id UUID REFERENCES sessions(id) ON DELETE CASCADE NOT NULL,
-  fish_species TEXT NOT NULL,
-  length_cm NUMERIC(5,1),
-  weight_g NUMERIC(7,1),
-  lure_id UUID REFERENCES lures(id) ON DELETE SET NULL,
-  lure_name TEXT,
-  lure_color TEXT,
-  caught_at TIMESTAMPTZ,
-  is_released BOOLEAN DEFAULT TRUE,
-  photo_url TEXT,
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Row Level Security を有効化
-ALTER TABLE spots ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE catches ENABLE ROW LEVEL SECURITY;
-ALTER TABLE lures ENABLE ROW LEVEL SECURITY;
-
--- 自分のデータだけ操作できるポリシー
-CREATE POLICY "spots_own" ON spots USING (auth.uid() = user_id);
-CREATE POLICY "sessions_own" ON sessions USING (auth.uid() = user_id);
-CREATE POLICY "lures_own" ON lures USING (auth.uid() = user_id);
-CREATE POLICY "catches_own" ON catches
-  USING (session_id IN (
-    SELECT id FROM sessions WHERE user_id = auth.uid()
-  ));
-```
-
-### 2-3. 認証設定
-
-「Authentication」→「Providers」→「Email」→「Confirm email」を **OFF** に設定（開発中のみ）
-
-### 2-4. テストユーザー作成
-
-「Authentication」→「Users」→「Add user」でメールアドレスとパスワードを設定
-
-### 2-5. APIキーの確認
-
-「Project Settings」→「Data API」で以下をメモしておく：
-
-- **Project URL**: `https://xxxx.supabase.co`
-- **anon public key**: `eyJ...`（長い文字列）
-
----
-
-## 3. バックエンド（FastAPI）セットアップ
-
-### 3-1. 依存パッケージのインストール
+Python 3.10 以上が必要です。CI では Python 3.14 で検証しています。
 
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # Windowsは venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
 ```
 
-### 3-2. 環境変数の設定
+`backend/.env` に Supabase の値を入れます。
 
-`backend/.env` を作成してSupabaseのキーを設定：
-
-```
+```env
 SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_ANON_KEY=あなたのanon_key
+SUPABASE_ANON_KEY=your_anon_key_here
+ALLOWED_ORIGINS=http://localhost:3000
 ```
 
-> 認証はSupabaseが発行するユーザーJWTをFastAPIへBearerトークンで渡し、PostgRESTにそのまま流すことでRLSが効く構成です。`service_role` キーはバックエンドでは使用しません。
-
-### 3-3. 起動
+起動:
 
 ```bash
 uvicorn main:app --reload
 ```
 
-`http://localhost:8000/docs` でSwagger UIが表示されれば成功。
+Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 
----
+### 4. Frontend
 
-## 4. フロントエンド（Next.js）セットアップ
-
-### 4-1. 依存パッケージのインストール
+Node.js 22 系を推奨します。CI でも Node.js 22 を使っています。
 
 ```bash
-cd ../frontend
+cd frontend
 npm install
 ```
 
-### 4-2. 環境変数の設定
+`frontend/.env.local` を作成し、Supabase と API の URL を入れます。
 
-`frontend/.env.local` を作成してSupabaseのキーを設定：
-
-```
+```env
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=あなたのanon_key
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-> ⚠️ `.env.local` は `.gitignore` に含まれているため、各自で作成が必要
-
-### 4-3. 起動
+起動:
 
 ```bash
 npm run dev
 ```
 
-`http://localhost:3000` でアプリが表示されれば成功。
+アプリ: [http://localhost:3000](http://localhost:3000)
 
----
+## 開発コマンド
 
-## 5. 開発時の注意点
-
-- **バックエンドとフロントエンドは別々のターミナルで起動する**
-- **バックエンド**: `http://localhost:8000`（FastAPI）
-- **フロントエンド**: `http://localhost:3000`（Next.js）
-- `.env` 系ファイルを変更したらサーバーの再起動が必要
-- `uvicorn --reload` はファイル保存時にサーバーを自動再起動するが、ブラウザは手動でリロードが必要
-
----
-
-## 6. テスト
-
-### 6-1. バックエンド (pytest)
+### Backend
 
 ```bash
 cd backend
 source venv/bin/activate
-pip install -r requirements-dev.txt   # 初回のみ
+uvicorn main:app --reload
 pytest
+pytest -m "not integration"
+pytest -m integration
 ```
 
-Supabase に接続する必要は無く、`tests/conftest.py` がフェイク Supabase クライアントを
-依存性注入で差し込みます。
+`pytest -m integration` は実 Supabase に接続します。必要な環境変数やテスト用プロジェクトの作り方は [docs/database-setup.md](docs/database-setup.md) と [docs/testing.md](docs/testing.md) を参照してください。
 
-### 6-2. フロントエンド (Vitest + Testing Library)
+### Frontend
 
 ```bash
 cd frontend
-npm install         # 初回のみ
-npm test            # 1 回実行
-npm run test:watch  # ウォッチモード
+npm run dev
+npm test
+npm run test:watch
+npm run lint
 ```
 
-こちらも実 Supabase / 実 API には接続せず、各テストで `vi.mock` により差し替え。
+## テストと CI
 
-### 6-3. バックエンド結合テスト (実 Supabase)
+通常の単体テストは Supabase に接続しません。
 
-`backend/tests/integration/` 配下のテストは **本物の Supabase に接続して**、認証・
-RLS・PostgREST まで含めて検証します。`@pytest.mark.integration` マーカーが付いていて、
-環境変数が無ければ自動 skip されるので、ユニットテストの実行には影響しません。
+- backend unit: `backend/tests/conftest.py` が fake Supabase client を依存性注入します。
+- backend integration: `backend/tests/integration/` が実 Supabase、Auth、RLS、PostgREST を検証します。`TEST_SUPABASE_*` が無い場合は skip されます。
+- frontend unit: Vitest と Testing Library で `fetch`, Supabase, Next navigation を mock します。
 
-#### 6-3-1. テスト用 Supabase プロジェクトの準備 (一度きり)
+GitHub Actions は backend、frontend、integration の 3 job を実行します。詳細は [docs/testing.md](docs/testing.md) を参照してください。
 
-1. Supabase ダッシュボードで **テスト専用プロジェクト** を新規作成 (`catch-management-test` 等)。
-   ⚠️ 本番プロジェクトを使うとテストでユーザー作成/削除を繰り返してデータが汚染される。
-2. SQL Editor で本 README の「2-2. テーブル作成」の SQL をそのまま実行。
-3. Authentication → Providers → Email → **Confirm email を OFF**。
-4. Project Settings → API から以下を取得:
-   - `URL` → `TEST_SUPABASE_URL`
-   - `anon public key` → `TEST_SUPABASE_ANON_KEY`
-   - `service_role` key → `TEST_SUPABASE_SERVICE_ROLE_KEY` (admin API でユーザー作成/削除に使用)
-5. ローカル: `backend/.env.test.example` を `backend/.env.test` にコピーして値を埋める。
-6. CI: GitHub リポジトリの Settings → Secrets and variables → Actions で同じ 3 つを登録。
+## 関連ドキュメント
 
-#### 6-3-2. 実行
+- [docs/architecture.md](docs/architecture.md): アーキテクチャ、認証フロー、データモデル
+- [docs/database-setup.md](docs/database-setup.md): Supabase プロジェクト、schema、RLS、結合テスト用 DB
+- [docs/testing.md](docs/testing.md): テスト戦略、fixture、CI
+- [docs/known-issues.md](docs/known-issues.md): 発見済みバグと修正履歴
+- [docs/code-review.md](docs/code-review.md): 改善候補と GitHub issue 対応状況
 
-```bash
-cd backend
-source venv/bin/activate
-pip install -r requirements-dev.txt
-pytest -m integration              # 結合テストだけ実行
-pytest                             # ユニット + 結合 をまとめて実行
-pytest -m "not integration"        # ユニットだけ
-```
+## 開発メモ
 
-#### 6-3-3. 隔離戦略
-
-各テストは **使い捨ての Supabase ユーザーを作成 → 操作 → 削除** で完結します。
-`auth.users` の `ON DELETE CASCADE` が `spots` / `sessions` / `lures` に張られて
-いるので、ユーザー削除でテストデータも自動的に消えます。RLS の境界テスト
-(`test_rls_blocks_other_users_*`) では追加で `second_user` fixture を使います。
-
-### 6-4. ローカルで Supabase をフルスタック起動 (任意 / 選択肢 C)
-
-CI とは別に、開発者がオフラインで結合テストを高速に回したい場合は
-[Supabase CLI](https://supabase.com/docs/guides/cli) でローカルに同等スタックを
-起動できます。
-
-```bash
-brew install supabase/tap/supabase    # 初回のみ
-cd backend
-supabase init                          # 初回のみ (supabase/ ディレクトリ生成)
-supabase start                         # Docker で Postgres+GoTrue+PostgREST を起動
-```
-
-`supabase start` の出力に表示される `API URL` / `anon key` / `service_role key` を
-そのまま `backend/.env.test` に書けば `pytest -m integration` がローカル Supabase に
-向きます。CI は引き続きクラウド側のテストプロジェクトを使う構成を推奨。
-
-### 6-5. CI (GitHub Actions)
-
-`.github/workflows/ci.yml` が `push` および `pull_request` で起動し、3 ジョブを実行:
-
-| ジョブ | 内容 | Secrets |
-|---|---|---|
-| `backend` | `pytest` (ユニットのみ、`-m "not integration"` 相当) | 不要 |
-| `frontend` | `npm test` (Vitest) | 不要 |
-| `integration` | `pytest -m integration` (実 Supabase) | `TEST_SUPABASE_*` 3 つ |
-
-- Secrets 未登録の状態でも `integration` ジョブは fixture が自動 skip するので落ちません。
-- fork からの PR は Secrets にアクセスできないため `integration` をスキップする条件付き。
-- `concurrency: ci-integration-${ref}` で同一ブランチの結合テストを直列化し、
-  テスト用 Supabase へのデータ衝突や API レートを抑制。
-
-ローカルでの CI 同等再現:
-```bash
-# unit (backend)
-cd backend && SUPABASE_URL=https://test.supabase.co SUPABASE_ANON_KEY=test-anon-key pytest -m "not integration"
-
-# unit (frontend)
-cd frontend && npm ci && npm test
-
-# integration (要 .env.test)
-cd backend && pytest -m integration
-```
+- ローカル用の `.env`, `.env.local`, `.env.test` は gitignore 済みです。実 key は commit しないでください。
+- `backend/.env.example` と `backend/.env.test.example` はテンプレートとして管理しています。
+- Backend runtime では Supabase `service_role` key を使わない方針です。
+- Next.js 16 は従来バージョンと差分が大きいため、フロント実装時は [frontend/AGENTS.md](frontend/AGENTS.md) の注意も確認してください。
