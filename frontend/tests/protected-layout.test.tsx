@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const replace = vi.fn()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace }),
+  usePathname: () => '/',
 }))
 
 const getSession = vi.fn()

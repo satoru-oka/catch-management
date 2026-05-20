@@ -44,6 +44,20 @@ def test_create_spot_assigns_user_id(client, fake_db):
     assert inserted["user_id"] == TEST_USER_ID
 
 
+def test_create_spot_drops_optional_none(client, fake_db):
+    fake_db.queue_result([{"id": "s1", "name": "新ポイント", "user_id": TEST_USER_ID}])
+
+    res = client.post(
+        "/api/spots/",
+        json={"name": "新ポイント", "river_name": None, "notes": None},
+    )
+
+    assert res.status_code == 200
+    insert_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "insert")
+    inserted = insert_op[1][0]
+    assert inserted == {"name": "新ポイント", "user_id": TEST_USER_ID}
+
+
 def test_get_spot_found(client, fake_db):
     fake_db.queue_result([{"id": "s1", "name": "本流"}])
 

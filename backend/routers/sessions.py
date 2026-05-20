@@ -52,14 +52,8 @@ def create_session(
     db: Client = Depends(get_supabase),
     user_id: str = Depends(get_current_user),
 ):
-    data = {k: v for k, v in session.model_dump().items() if v is not None}
+    data = {k: v for k, v in session.model_dump(mode="json").items() if v is not None}
     data["user_id"] = user_id
-    if "date" in data:
-        data["date"] = str(data["date"])
-    if "start_time" in data:
-        data["start_time"] = str(data["start_time"])
-    if "end_time" in data:
-        data["end_time"] = str(data["end_time"])
     result = db.table("sessions").insert(data).execute()
     return result.data[0]
 
@@ -99,13 +93,7 @@ def get_session(session_id: str, db: Client = Depends(get_supabase)):
 def update_session(
     session_id: str, session: SessionUpdate, db: Client = Depends(get_supabase)
 ):
-    data = {k: v for k, v in session.model_dump().items() if v is not None}
-    if "date" in data:
-        data["date"] = str(data["date"])
-    if "start_time" in data:
-        data["start_time"] = str(data["start_time"])
-    if "end_time" in data:
-        data["end_time"] = str(data["end_time"])
+    data = {k: v for k, v in session.model_dump(mode="json").items() if v is not None}
     result = db.table("sessions").update(data).eq("id", session_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="釣行が見つかりません")

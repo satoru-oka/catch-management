@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from supabase import Client
@@ -36,7 +35,7 @@ def create_spot(
     db: Client = Depends(get_supabase),
     user_id: str = Depends(get_current_user),
 ):
-    data = spot.model_dump()
+    data = {k: v for k, v in spot.model_dump().items() if v is not None}
     data["user_id"] = user_id
     result = db.table("spots").insert(data).execute()
     return result.data[0]
