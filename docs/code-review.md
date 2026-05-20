@@ -121,7 +121,7 @@
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
 | S-1 | 🟢 | `create_spot` のみ `model_dump()` で None を含めて INSERT。他 router と挙動が違う | **DONE** (X-3) [#21](https://github.com/satoru-oka/catch-management/issues/21): `None` フィールドを除外 |
-| S-2 | 🟢 | `update_spot` は None を除外するため、フィールドを NULL にクリアできない | **OPEN** (X-2 で扱う) [#20](https://github.com/satoru-oka/catch-management/issues/20) |
+| S-2 | 🟢 | `update_spot` は None を除外するため、フィールドを NULL にクリアできない | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): `exclude_unset=True` に変更し、明示 `null` は更新ペイロードに残す |
 | S-3 | ⚪ | line 1 が空行 (Ruff 整理の残骸)。意味なし | **DONE** [#32](https://github.com/satoru-oka/catch-management/issues/32): 先頭空行を削除 |
 | S-4 | 🟢 | `list_spot_sessions` にページング無し | **OPEN** (X-1 で扱う) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
 | S-5 | ⚪ | `list_spots` に並び順指定なし。フロントの追加順依存 | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): `.order("name")` 追加が自然 |
@@ -146,8 +146,8 @@
 |---|---|---|---|
 | SS-1 | 🟡 | `monthly_stats` が全行フェッチ → Python 集計。データ増加で線形劣化 | **DONE** [#18](https://github.com/satoru-oka/catch-management/issues/18): `user_monthly_session_stats` view を優先し、未作成環境では fallback |
 | SS-2 | 🟡 | `list_sessions` にページング無し | **OPEN** (X-1 で扱う) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
-| SS-3 | 🟢 | `update_session` は None を除外するためフィールドクリア不可 | **OPEN** (X-2 で扱う) [#20](https://github.com/satoru-oka/catch-management/issues/20) |
-| SS-4 | 🟢 | `if "date" in data: data["date"] = str(...)` を 3 フィールドで繰り返し。Pydantic v2 の `model_dump(mode="json")` で自動化可能 | **DONE** [#31](https://github.com/satoru-oka/catch-management/issues/31): `model_dump(mode="json", exclude_none=True)` に統一 |
+| SS-3 | 🟢 | `update_session` は None を除外するためフィールドクリア不可 | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): `model_dump(mode="json", exclude_unset=True)` に変更し、明示 `null` は更新ペイロードに残す |
+| SS-4 | 🟢 | `if "date" in data: data["date"] = str(...)` を 3 フィールドで繰り返し。Pydantic v2 の `model_dump(mode="json")` で自動化可能 | **DONE** [#31](https://github.com/satoru-oka/catch-management/issues/31): `SessionCreate` / `SessionUpdate` を `model_dump(mode="json")` ベースに変更 |
 | SS-5 | 🟢 | `monthly_stats` が期間 (年月範囲) を絞らない。長期運用すると全月返す | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): クエリパラメータ追加で対応 |
 
 ---
@@ -168,10 +168,10 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| C-1 | 🟡 | `lure_id` の所有者検証が無く、他人の lure_id を参照する catch を挿入できる可能性 (FK は通る) | **OPEN** [#16](https://github.com/satoru-oka/catch-management/issues/16) |
+| C-1 | 🟡 | `lure_id` の所有者検証が無く、他人の lure_id を参照する catch を挿入できる可能性 (FK は通る) | **DONE** [#16](https://github.com/satoru-oka/catch-management/issues/16): `create_catch` / `update_catch` で RLS 越しに `lures` を確認し、見えない `lure_id` は 400 |
 | C-2 | 🟡 | `lure_id` と `lure_name` / `lure_color` の denormalization で drift が起きる仕様の整理が未着手 | **DONE** [#17](https://github.com/satoru-oka/catch-management/issues/17): 履歴 snapshot として drift を許容する方針を architecture に明記 |
 | C-3 | 🟢 | `list_catches` にページング無し | **OPEN** (X-1) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
-| C-4 | 🟢 | `update_catch` でフィールドクリア不可 | **OPEN** (X-2) [#20](https://github.com/satoru-oka/catch-management/issues/20) |
+| C-4 | 🟢 | `update_catch` でフィールドクリア不可 | **DONE**: `model_dump(mode="json", exclude_unset=True)` に変更し、明示 `null` は更新ペイロードに残す |
 | C-5 | 🟢 | `list_catches` のフィルタが `fish_species` / `lure_name` のみ。日付範囲・サイズ範囲もよくある検索軸 | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): ニーズが出たら追加 |
 
 ---
@@ -194,7 +194,7 @@
 |---|---|---|---|
 | L-1 | 🟡 | `lure_stats` が全行フェッチ → Python 集計 | **DONE** (SS-1) [#18](https://github.com/satoru-oka/catch-management/issues/18): `user_lure_stats` view を優先し、未作成環境では fallback |
 | L-2 | 🟡 | `lure_stats` が `lure_name` 文字列でグルーピング。lure を rename すると統計が分裂 | **WONTFIX** (C-2) [#17](https://github.com/satoru-oka/catch-management/issues/17): ルアー名は履歴 snapshot として扱うため、統計も当時名で集計 |
-| L-3 | 🟢 | `update_lure` でフィールドクリア不可 | **OPEN** (X-2) [#20](https://github.com/satoru-oka/catch-management/issues/20) |
+| L-3 | 🟢 | `update_lure` でフィールドクリア不可 | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): `exclude_unset=True` に変更し、明示 `null` は更新ペイロードに残す |
 | L-4 | ⚪ | `list_lures` に並び替え指定パラメータ無し (常に name asc) | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): ニーズが出たら追加 |
 
 ---
@@ -206,7 +206,7 @@
 | # | 重要度 | 内容 | 影響範囲 | 状況 |
 |---|---|---|---|---|
 | X-1 | 🟡 | list 系エンドポイントに **ページング無し** | spots / sessions / catches / lures (5 endpoint) | **OPEN** [#19](https://github.com/satoru-oka/catch-management/issues/19) |
-| X-2 | 🟡 | PUT で `if v is not None` フィルタにより **NULL クリア不可** | spots / sessions / catches / lures (4 endpoint) | **OPEN** [#20](https://github.com/satoru-oka/catch-management/issues/20) |
+| X-2 | 🟡 | PUT で `if v is not None` フィルタにより **NULL クリア不可** | spots / sessions / catches / lures (4 endpoint) | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): 全 PUT を `exclude_unset=True` ベースにして、未指定と明示 `null` を区別 |
 | X-3 | 🟢 | INSERT の None 扱いが [spots.py:39](backend/routers/spots.py#L39) のみ非対称 | spots vs others | **DONE** [#21](https://github.com/satoru-oka/catch-management/issues/21): `create_spot` も optional `None` を除外 |
 
 ---
@@ -242,7 +242,7 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| FS-1 | 🔴 | `process.env.NEXT_PUBLIC_SUPABASE_URL!` / `NEXT_PUBLIC_SUPABASE_ANON_KEY!` の **non-null 断言** で握りつぶし ([supabase.ts:8-9](frontend/lib/supabase.ts#L8-L9))。未設定時は "createClient is not a function" 系の難読ランタイムエラー。`backend/supabase_client.py` と同じく明示 throw に統一すべき | **OPEN** [#23](https://github.com/satoru-oka/catch-management/issues/23) |
+| FS-1 | 🔴 | `process.env.NEXT_PUBLIC_SUPABASE_URL!` / `NEXT_PUBLIC_SUPABASE_ANON_KEY!` の **non-null 断言** で握りつぶし ([supabase.ts:8-9](frontend/lib/supabase.ts#L8-L9))。未設定時は "createClient is not a function" 系の難読ランタイムエラー。`backend/supabase_client.py` と同じく明示 throw に統一すべき | **DONE** [#23](https://github.com/satoru-oka/catch-management/issues/23): `createClient()` が env 欠落時に明示的な Error を投げるようにし、単体テストを追加 |
 
 ---
 
@@ -284,7 +284,7 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| H-1 | 🟡 | `todayIso()` が `new Date().toISOString().slice(0, 10)` で **UTC ベース** ([page.tsx:21-23](frontend/app/(protected)/page.tsx#L21-L23))。23:00 JST に開くと「今日」が UTC 翌日になり、午前中に登録した釣果が翌日扱いに | **OPEN** [#26](https://github.com/satoru-oka/catch-management/issues/26): `Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Tokyo'}).format(new Date())` で JST 固定に |
+| H-1 | 🟡 | `todayIso()` が `new Date().toISOString().slice(0, 10)` で **UTC ベース** ([page.tsx:21-23](frontend/app/(protected)/page.tsx#L21-L23))。JST 深夜に開くと「今日」が UTC 前日になり、登録した釣果が前日扱いに | **DONE** [#26](https://github.com/satoru-oka/catch-management/issues/26): `Intl.DateTimeFormat(..., { timeZone: 'Asia/Tokyo' })` で今日・釣果日付・月次集計を JST 基準に統一 |
 | H-2 | 🟡 | `catches.filter` / `reduce` / `new Map(sessions.map(...))` がレンダーごとに走る ([page.tsx:69-85](frontend/app/(protected)/page.tsx#L69-L85))。釣果が数百件溜まると体感に出る | **DONE** [#35](https://github.com/satoru-oka/catch-management/issues/35): 派生値を `useMemo` 化 |
 | H-3 | 🟢 | `greetingName[0]` で頭文字取得 ([page.tsx:116](frontend/app/(protected)/page.tsx#L116))。サロゲートペア (絵文字名) で文字化けする | **DONE** [#35](https://github.com/satoru-oka/catch-management/issues/35): `[...greetingName][0]` で code point 単位に変更 |
 | H-4 | 🟢 | `eslint-disable-next-line @next/next/no-img-element` で `<img>` 直書き ([page.tsx:108](frontend/app/(protected)/page.tsx#L108), [page.tsx:205](frontend/app/(protected)/page.tsx#L205))。Supabase Storage のホストを `next.config.ts` に登録すれば `next/image` 化可 | **WONTFIX** [#35](https://github.com/satoru-oka/catch-management/issues/35): avatar / photo URL の remote host が未固定のため、画像機能設計時に再検討 |
@@ -307,7 +307,7 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| SD-1 | 🟡 | 釣果カードが `<div onClick>` で navigation ([sessions/[id]/page.tsx:90-94](frontend/app/(protected)/sessions/[id]/page.tsx#L90-L94))。Tab focus されず、スクリーンリーダー到達不可。ISSUE-002 の a11y 改善と整合させたい | **OPEN** [#25](https://github.com/satoru-oka/catch-management/issues/25): `<Link href={...}>` か `<button>` に置換 |
+| SD-1 | 🟡 | 釣果カードが `<div onClick>` で navigation ([sessions/[id]/page.tsx:90-94](frontend/app/(protected)/sessions/[id]/page.tsx#L90-L94))。Tab focus されず、スクリーンリーダー到達不可。ISSUE-002 の a11y 改善と整合させたい | **DONE** [#25](https://github.com/satoru-oka/catch-management/issues/25): 釣果カードを編集画面への `<Link>` に変更し、リンクとして focus / 認識できるようにした |
 | SD-2 | 🟢 | `c.length_cm && \`${c.length_cm}cm\`` の `&&` 条件 ([sessions/[id]/page.tsx:100](frontend/app/(protected)/sessions/[id]/page.tsx#L100))。サイズ 0 は実質ありえないので実害無し | **DONE** [#35](https://github.com/satoru-oka/catch-management/issues/35): `c.length_cm != null` に変更 |
 
 ---
@@ -340,7 +340,7 @@
 | # | 重要度 | 内容 | 影響範囲 | 状況 |
 |---|---|---|---|---|
 | FX-1 | 🟡 | フォーム edit 系で「空文字を送らない」回避策で NULL クリア不可。X-2 の表側 | sessions/[id]/edit, catches/[catchId]/edit, lures, spots | **OPEN** [#38](https://github.com/satoru-oka/catch-management/issues/38): X-2 (backend で `exclude_unset=True`) 解消後に撤去 |
-| FX-2 | 🟢 | `useEffect` の依存配列が `apiFetch` などモジュールスコープ関数を省略している箇所多数 | (protected) 配下のページほぼ全部 | **DONE** [#28](https://github.com/satoru-oka/catch-management/issues/28): Next core-web-vitals の hooks lint を CI の `npm run lint` で実行 |
+| FX-2 | 🟢 | `useEffect` の依存配列が `apiFetch` などモジュールスコープ関数を省略している箇所多数 | (protected) 配下のページほぼ全部 | **DONE** [#28](https://github.com/satoru-oka/catch-management/issues/28): Next.js の hooks lint を CI で `npm run lint -- --max-warnings=0` として継続実行 |
 
 ---
 

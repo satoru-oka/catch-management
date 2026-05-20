@@ -129,7 +129,7 @@ def update_session(
     db: Client = Depends(get_supabase),
     _user_id: str = Depends(get_current_user),
 ):
-    data = session.model_dump(mode="json", exclude_none=True)
+    data = session.model_dump(mode="json", exclude_unset=True)
     result = db.table("sessions").update(data).eq("id", session_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="釣行が見つかりません")

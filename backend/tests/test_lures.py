@@ -53,13 +53,23 @@ def test_create_lure_validation_requires_name(client):
     assert res.status_code == 422
 
 
-def test_update_lure_strips_none(client, fake_db):
+def test_update_lure_preserves_explicit_none(client, fake_db):
     fake_db.queue_result([{"id": "l1", "color": "赤金"}])
 
     res = client.put(
         "/api/lures/l1",
         json={"color": "赤金", "notes": None},
     )
+
+    assert res.status_code == 200
+    update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
+    assert update_op[1][0] == {"color": "赤金", "notes": None}
+
+
+def test_update_lure_leaves_unset_fields_out(client, fake_db):
+    fake_db.queue_result([{"id": "l1", "color": "赤金"}])
+
+    res = client.put("/api/lures/l1", json={"color": "赤金"})
 
     assert res.status_code == 200
     update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")

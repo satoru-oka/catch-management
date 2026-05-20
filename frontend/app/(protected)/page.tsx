@@ -17,18 +17,32 @@ type Profile = {
 }
 
 const WEEKDAY = ['日', '月', '火', '水', '木', '金', '土']
+const TOKYO_TIME_ZONE = 'Asia/Tokyo'
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
+function tokyoDateIso(date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TOKYO_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const value = (type: string) => parts.find((part) => part.type === type)?.value
+  return `${value('year')}-${value('month')}-${value('day')}`
 }
 
 function formatJpDate(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getMonth() + 1}月${d.getDate()}日(${WEEKDAY[d.getDay()]})`
+  const [year, month, day] = iso.split('-').map(Number)
+  const d = new Date(year, month - 1, day)
+  return `${month}月${day}日(${WEEKDAY[d.getDay()]})`
 }
 
 function catchDate(c: CatchWithSession): string {
-  return (c.caught_at ?? c.sessions?.date ?? '').slice(0, 10)
+  if (c.caught_at) {
+    const date = new Date(c.caught_at)
+    if (!Number.isNaN(date.getTime())) return tokyoDateIso(date)
+    return c.caught_at.slice(0, 10)
+  }
+  return c.sessions?.date?.slice(0, 10) ?? ''
 }
 
 export default function HomePage() {
@@ -61,7 +75,7 @@ export default function HomePage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const today = useMemo(() => todayIso(), [])
+  const today = useMemo(() => tokyoDateIso(), [])
   const monthStart = useMemo(() => `${today.slice(0, 7)}-01`, [today])
   const greetingName = profile?.name ?? 'ゲスト'
   const greetingInitial = useMemo(() => [...greetingName][0] ?? 'ゲ', [greetingName])

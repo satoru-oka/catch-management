@@ -56,7 +56,7 @@ def update_spot(
     db: Client = Depends(get_supabase),
     _user_id: str = Depends(get_current_user),
 ):
-    data = {k: v for k, v in spot.model_dump().items() if v is not None}
+    data = spot.model_dump(exclude_unset=True)
     result = db.table("spots").update(data).eq("id", spot_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ポイントが見つかりません")

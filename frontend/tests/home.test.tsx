@@ -1,5 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({}),
+}))
 
 const apiFetch = vi.fn()
 vi.mock('@/lib/api', async () => {
@@ -62,6 +66,7 @@ beforeEach(() => {
 })
 
 afterEach(() => vi.clearAllMocks())
+afterEach(() => vi.useRealTimers())
 
 describe('HomePage', () => {
   it('読み込み中は FullScreenSpinner', () => {
@@ -91,6 +96,38 @@ describe('HomePage', () => {
     })
   })
 
+  it('今日と今月の集計を JST の日付で計算する', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-05-31T15:30:00.000Z')) // 2026-06-01 00:30 JST
+    apiFetch.mockResolvedValueOnce([
+      {
+        ...catchRecord,
+        id: 'today',
+        fish_species: 'ブラックバス',
+        length_cm: 42,
+        caught_at: '2026-05-31T15:20:00.000Z', // 2026-06-01 00:20 JST
+      },
+      {
+        ...catchRecord,
+        id: 'yesterday',
+        fish_species: 'ブラックバス',
+        length_cm: 42,
+        caught_at: '2026-05-31T14:50:00.000Z', // 2026-05-31 23:50 JST
+      },
+    ])
+    apiFetch.mockResolvedValueOnce([session])
+
+    render(<HomePage />)
+
+    expect((await screen.findAllByText('ブラックバス')).length).toBeGreaterThan(0)
+    const todaySection = screen.getByText('今日の釣果').closest('section')
+    expect(todaySection).not.toBeNull()
+    expect(within(todaySection as HTMLElement).getByText('6月1日(月)')).toBeInTheDocument()
+    expect(within(todaySection as HTMLElement).getByText('1')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /今月の釣果/ })).toHaveTextContent('1匹')
+    expect(screen.getByRole('link', { name: /今月の釣果/ })).toHaveTextContent('06月')
+  })
+
   it('プロフィール名が無い場合はメールアカウント名で挨拶する', async () => {
     getUser.mockResolvedValueOnce({
       data: {
@@ -106,6 +143,21 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(await screen.findByText('こんにちは、anglerさん！')).toBeInTheDocument()
+  })
+
+  it('主要リンクが期待するページへ向いている', async () => {
+    apiFetch.mockResolvedValueOnce([])
+    apiFetch.mockResolvedValueOnce([])
+
+    render(<HomePage />)
+
+    await screen.findByText('釣果記録がまだありません')
+    expect(screen.getByRole('link', { name: '設定' })).toHaveAttribute('href', '/settings')
+    expect(screen.getByRole('link', { name: '＋ 釣果を記録' })).toHaveAttribute(
+      'href',
+      '/sessions/new',
+    )
+    expect(screen.getByRole('link', { name: /総釣果数/ })).toHaveAttribute('href', '/stats')
   })
 
   it('釣果 0 件で空状態の案内が出る', async () => {

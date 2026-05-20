@@ -52,7 +52,7 @@ def update_lure(
     db: Client = Depends(get_supabase),
     _user_id: str = Depends(get_current_user),
 ):
-    data = {k: v for k, v in lure.model_dump().items() if v is not None}
+    data = lure.model_dump(exclude_unset=True)
     result = db.table("lures").update(data).eq("id", lure_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ルアーが見つかりません")

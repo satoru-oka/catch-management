@@ -44,6 +44,20 @@ def test_create_spot_assigns_user_id(client, fake_db):
     assert inserted["user_id"] == TEST_USER_ID
 
 
+def test_create_spot_drops_optional_none(client, fake_db):
+    fake_db.queue_result([{"id": "s1", "name": "新ポイント", "user_id": TEST_USER_ID}])
+
+    res = client.post(
+        "/api/spots/",
+        json={"name": "新ポイント", "river_name": None, "notes": None},
+    )
+
+    assert res.status_code == 200
+    insert_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "insert")
+    inserted = insert_op[1][0]
+    assert inserted == {"name": "新ポイント", "user_id": TEST_USER_ID}
+
+
 def test_get_spot_found(client, fake_db):
     fake_db.queue_result([{"id": "s1", "name": "本流"}])
 
@@ -64,7 +78,7 @@ def test_get_spot_not_found(client, fake_db):
     assert res.json()["detail"] == "ポイントが見つかりません"
 
 
-def test_update_spot_strips_none(client, fake_db):
+def test_update_spot_preserves_explicit_none(client, fake_db):
     fake_db.queue_result([{"id": "s1", "name": "改名"}])
 
     res = client.put(
@@ -75,7 +89,17 @@ def test_update_spot_strips_none(client, fake_db):
     assert res.status_code == 200
     update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
     update_data = update_op[1][0]
-    assert update_data == {"name": "改名"}  # None は除外される
+    assert update_data == {"name": "改名", "river_name": None}
+
+
+def test_update_spot_leaves_unset_fields_out(client, fake_db):
+    fake_db.queue_result([{"id": "s1", "name": "改名"}])
+
+    res = client.put("/api/spots/s1", json={"name": "改名"})
+
+    assert res.status_code == 200
+    update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
+    assert update_op[1][0] == {"name": "改名"}
 
 
 def test_update_spot_not_found(client, fake_db):
