@@ -1,11 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const push = vi.fn()
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push }),
-}))
 
 const apiFetch = vi.fn()
 vi.mock('@/lib/api', async () => {
@@ -13,18 +7,20 @@ vi.mock('@/lib/api', async () => {
   return { ...actual, apiFetch: (...args: unknown[]) => apiFetch(...args) }
 })
 
-const signOut = vi.fn().mockResolvedValue(undefined)
+const getUser = vi.fn()
 vi.mock('@/lib/supabase', () => ({
-  createClient: () => ({ auth: { signOut } }),
+  createClient: () => ({ auth: { getUser } }),
 }))
 
 import HomePage from '@/app/(protected)/page'
+
+const today = new Date().toISOString().slice(0, 10)
 
 const session = {
   id: 'ses1',
   user_id: 'u',
   spot_id: 'sp1',
-  date: '2026-05-01',
+  date: today,
   start_time: null,
   end_time: null,
   water_level: '平水',
@@ -35,11 +31,34 @@ const session = {
   spots: { name: '本流ポイント', river_name: '球磨川' },
 }
 
+const catchRecord = {
+  id: 'catch1',
+  session_id: 'ses1',
+  fish_species: 'ヤマメ',
+  length_cm: 25,
+  weight_g: 500,
+  lure_id: null,
+  lure_name: 'D-コンタクト',
+  lure_color: 'アユ',
+  caught_at: `${today}T08:30:00.000Z`,
+  is_released: true,
+  photo_url: null,
+  notes: null,
+  created_at: '',
+  sessions: { date: today, spot_id: 'sp1' },
+}
+
 beforeEach(() => {
-  push.mockReset()
   apiFetch.mockReset()
-  signOut.mockClear()
-  signOut.mockResolvedValue(undefined)
+  getUser.mockReset()
+  getUser.mockResolvedValue({
+    data: {
+      user: {
+        email: 'satoru@example.com',
+        user_metadata: { display_name: '釣り太郎' },
+      },
+    },
+  })
 })
 
 afterEach(() => vi.clearAllMocks())
@@ -47,66 +66,64 @@ afterEach(() => vi.clearAllMocks())
 describe('HomePage', () => {
   it('読み込み中は FullScreenSpinner', () => {
     apiFetch.mockReturnValue(new Promise(() => {}))
+    getUser.mockReturnValue(new Promise(() => {}))
+
     render(<HomePage />)
+
     expect(screen.getByRole('status')).toBeInTheDocument()
   })
 
-  it('釣行履歴をカードとして表示する', async () => {
+  it('釣果と釣行を取得してダッシュボードを表示する', async () => {
+    apiFetch.mockResolvedValueOnce([catchRecord])
     apiFetch.mockResolvedValueOnce([session])
+
     render(<HomePage />)
-    expect(await screen.findByText('2026-05-01')).toBeInTheDocument()
+
+    expect(await screen.findByText('こんにちは、釣り太郎さん！')).toBeInTheDocument()
+    expect(screen.getByText('最近の釣果')).toBeInTheDocument()
+    expect(screen.getByText('ヤマメ')).toBeInTheDocument()
     expect(screen.getByText(/球磨川/)).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenNthCalledWith(1, '/api/catches')
+      expect(apiFetch).toHaveBeenNthCalledWith(2, '/api/sessions')
+      expect(getUser).toHaveBeenCalled()
+    })
   })
 
-  it('履歴 0 件で空状態の案内が出る', async () => {
+  it('プロフィール名が無い場合はメールアカウント名で挨拶する', async () => {
+    getUser.mockResolvedValueOnce({
+      data: {
+        user: {
+          email: 'angler@example.com',
+          user_metadata: {},
+        },
+      },
+    })
     apiFetch.mockResolvedValueOnce([])
-    render(<HomePage />)
-    expect(await screen.findByText('釣行記録がまだありません')).toBeInTheDocument()
-  })
-
-  it('カードクリックで詳細ページへ遷移', async () => {
-    apiFetch.mockResolvedValueOnce([session])
-    render(<HomePage />)
-    await screen.findByText('2026-05-01')
-    const user = userEvent.setup()
-
-    await user.click(screen.getByText('2026-05-01'))
-
-    expect(push).toHaveBeenCalledWith('/sessions/ses1')
-  })
-
-  it('ナビゲーション: ポイント / ルアー / 統計 / 新規釣行', async () => {
     apiFetch.mockResolvedValueOnce([])
-    render(<HomePage />)
-    await screen.findByText('釣行履歴')
-    const user = userEvent.setup()
 
-    await user.click(screen.getByRole('button', { name: 'ポイント管理ページへ' }))
-    expect(push).toHaveBeenLastCalledWith('/spots')
-    await user.click(screen.getByRole('button', { name: 'ルアー管理ページへ' }))
-    expect(push).toHaveBeenLastCalledWith('/lures')
-    await user.click(screen.getByRole('button', { name: '統計ページへ' }))
-    expect(push).toHaveBeenLastCalledWith('/stats')
-    await user.click(screen.getByRole('button', { name: '＋ 新規釣行' }))
-    expect(push).toHaveBeenLastCalledWith('/sessions/new')
+    render(<HomePage />)
+
+    expect(await screen.findByText('こんにちは、anglerさん！')).toBeInTheDocument()
   })
 
-  it('ログアウトで signOut が呼ばれ /login に遷移', async () => {
+  it('釣果 0 件で空状態の案内が出る', async () => {
     apiFetch.mockResolvedValueOnce([])
+    apiFetch.mockResolvedValueOnce([])
+
     render(<HomePage />)
-    await screen.findByText('釣行履歴')
-    const user = userEvent.setup()
 
-    await user.click(screen.getByRole('button', { name: 'ログアウト' }))
-
-    await waitFor(() => expect(signOut).toHaveBeenCalled())
-    expect(push).toHaveBeenCalledWith('/login')
+    expect(await screen.findByText('釣果記録がまだありません')).toBeInTheDocument()
   })
 
   it('読み込み失敗時はエラーバナーを表示する', async () => {
     const { ApiError } = await import('@/lib/api')
     apiFetch.mockRejectedValueOnce(new ApiError(500, '取得失敗'))
+    apiFetch.mockResolvedValueOnce([])
+
     render(<HomePage />)
+
     expect(await screen.findByText('読み込みに失敗しました: 取得失敗')).toBeInTheDocument()
   })
 })

@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from supabase import Client
@@ -36,7 +35,7 @@ def create_spot(
     db: Client = Depends(get_supabase),
     user_id: str = Depends(get_current_user),
 ):
-    data = spot.model_dump()
+    data = {k: v for k, v in spot.model_dump().items() if v is not None}
     data["user_id"] = user_id
     result = db.table("spots").insert(data).execute()
     return result.data[0]
@@ -51,7 +50,12 @@ def get_spot(spot_id: str, db: Client = Depends(get_supabase)):
 
 
 @router.put("/{spot_id}")
-def update_spot(spot_id: str, spot: SpotUpdate, db: Client = Depends(get_supabase)):
+def update_spot(
+    spot_id: str,
+    spot: SpotUpdate,
+    db: Client = Depends(get_supabase),
+    _user_id: str = Depends(get_current_user),
+):
     data = {k: v for k, v in spot.model_dump().items() if v is not None}
     result = db.table("spots").update(data).eq("id", spot_id).execute()
     if not result.data:
@@ -60,7 +64,11 @@ def update_spot(spot_id: str, spot: SpotUpdate, db: Client = Depends(get_supabas
 
 
 @router.delete("/{spot_id}")
-def delete_spot(spot_id: str, db: Client = Depends(get_supabase)):
+def delete_spot(
+    spot_id: str,
+    db: Client = Depends(get_supabase),
+    _user_id: str = Depends(get_current_user),
+):
     result = db.table("spots").delete().eq("id", spot_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ポイントが見つかりません")

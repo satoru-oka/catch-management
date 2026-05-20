@@ -97,6 +97,9 @@ export default function StatsPage() {
 
         <div className="bg-white rounded-xl shadow-sm p-4">
           <h2 className="font-bold text-gray-700 mb-4">ルアー別釣果ランキング</h2>
+          <p className="text-xs text-gray-400 -mt-2 mb-4">
+            釣果記録時点のルアー名で集計しています
+          </p>
           {lureStats.length === 0 ? (
             <p className="text-center text-gray-400 py-8">データがありません</p>
           ) : (

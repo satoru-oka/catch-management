@@ -1,4 +1,5 @@
 import datetime as dt
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -52,20 +53,25 @@ def create_session(
     db: Client = Depends(get_supabase),
     user_id: str = Depends(get_current_user),
 ):
-    data = {k: v for k, v in session.model_dump().items() if v is not None}
+    data = session.model_dump(mode="json", exclude_none=True)
     data["user_id"] = user_id
-    if "date" in data:
-        data["date"] = str(data["date"])
-    if "start_time" in data:
-        data["start_time"] = str(data["start_time"])
-    if "end_time" in data:
-        data["end_time"] = str(data["end_time"])
     result = db.table("sessions").insert(data).execute()
     return result.data[0]
 
 
 @router.get("/stats/monthly")
 def monthly_stats(db: Client = Depends(get_supabase)):
+    try:
+        result = (
+            db.table("user_monthly_session_stats")
+            .select("month, session_count, catch_count")
+            .execute()
+        )
+        return _format_monthly_stats_rows(result.data)
+    except Exception as e:
+        if not _is_missing_stats_view_error(e):
+            raise
+
     result = (
         db.table("sessions")
         .select("date, catches(id, length_cm, fish_species)")
@@ -80,6 +86,27 @@ def monthly_stats(db: Client = Depends(get_supabase)):
         stats[month]["session_count"] += 1
         stats[month]["catch_count"] += len(catches)
     return stats
+
+
+def _format_monthly_stats_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    return {
+        row["month"]: {
+            "session_count": int(row.get("session_count") or 0),
+            "catch_count": int(row.get("catch_count") or 0),
+        }
+        for row in rows
+    }
+
+
+def _is_missing_stats_view_error(exc: Exception) -> bool:
+    code = getattr(exc, "code", None)
+    if code is None and exc.args and isinstance(exc.args[0], dict):
+        code = exc.args[0].get("code")
+    message = str(exc).lower()
+    return code in {"42P01", "PGRST205"} or (
+        "user_monthly_session_stats" in message
+        and ("does not exist" in message or "could not find" in message)
+    )
 
 
 @router.get("/{session_id}")
@@ -97,15 +124,12 @@ def get_session(session_id: str, db: Client = Depends(get_supabase)):
 
 @router.put("/{session_id}")
 def update_session(
-    session_id: str, session: SessionUpdate, db: Client = Depends(get_supabase)
+    session_id: str,
+    session: SessionUpdate,
+    db: Client = Depends(get_supabase),
+    _user_id: str = Depends(get_current_user),
 ):
-    data = {k: v for k, v in session.model_dump().items() if v is not None}
-    if "date" in data:
-        data["date"] = str(data["date"])
-    if "start_time" in data:
-        data["start_time"] = str(data["start_time"])
-    if "end_time" in data:
-        data["end_time"] = str(data["end_time"])
+    data = session.model_dump(mode="json", exclude_none=True)
     result = db.table("sessions").update(data).eq("id", session_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="釣行が見つかりません")
@@ -113,7 +137,11 @@ def update_session(
 
 
 @router.delete("/{session_id}")
-def delete_session(session_id: str, db: Client = Depends(get_supabase)):
+def delete_session(
+    session_id: str,
+    db: Client = Depends(get_supabase),
+    _user_id: str = Depends(get_current_user),
+):
     result = db.table("sessions").delete().eq("id", session_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="釣行が見つかりません")

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { apiFetch, ApiError } from '@/lib/api'
@@ -61,30 +61,39 @@ export default function HomePage() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <FullScreenSpinner />
-
-  const today = todayIso()
-  const monthStart = today.slice(0, 7) + '-01'
-
-  const todaysCatches = catches.filter((c) => catchDate(c) === today)
-  const monthlyCatches = catches.filter((c) => catchDate(c) >= monthStart)
-
-  const todayCount = todaysCatches.length
-  const todayWeightKg = todaysCatches.reduce((sum, c) => sum + (c.weight_g ?? 0), 0) / 1000
-  const todayMaxCm = todaysCatches.reduce((m, c) => Math.max(m, c.length_cm ?? 0), 0)
-
-  const lifetime = catches.length
-  const monthly = monthlyCatches.length
-
-  const maxCatch = catches.reduce<CatchWithSession | null>((max, c) => {
-    if ((c.length_cm ?? 0) > (max?.length_cm ?? 0)) return c
-    return max
-  }, null)
-
-  const sessionById = new Map(sessions.map((s) => [s.id, s]))
-  const recent = catches.slice(0, 3)
-
+  const today = useMemo(() => todayIso(), [])
+  const monthStart = useMemo(() => `${today.slice(0, 7)}-01`, [today])
   const greetingName = profile?.name ?? 'ゲスト'
+  const greetingInitial = useMemo(() => [...greetingName][0] ?? 'ゲ', [greetingName])
+  const {
+    todayCount,
+    todayWeightKg,
+    todayMaxCm,
+    lifetime,
+    monthly,
+    maxCatch,
+    sessionById,
+    recent,
+  } = useMemo(() => {
+    const todaysCatches = catches.filter((c) => catchDate(c) === today)
+    const monthlyCatches = catches.filter((c) => catchDate(c) >= monthStart)
+    return {
+      todayCount: todaysCatches.length,
+      todayWeightKg:
+        todaysCatches.reduce((sum, c) => sum + (c.weight_g ?? 0), 0) / 1000,
+      todayMaxCm: todaysCatches.reduce((m, c) => Math.max(m, c.length_cm ?? 0), 0),
+      lifetime: catches.length,
+      monthly: monthlyCatches.length,
+      maxCatch: catches.reduce<CatchWithSession | null>((max, c) => {
+        if ((c.length_cm ?? 0) > (max?.length_cm ?? 0)) return c
+        return max
+      }, null),
+      sessionById: new Map(sessions.map((s) => [s.id, s])),
+      recent: catches.slice(0, 3),
+    }
+  }, [catches, monthStart, sessions, today])
+
+  if (loading) return <FullScreenSpinner />
 
   return (
     <div className="min-h-screen bg-sky-50">
@@ -113,7 +122,7 @@ export default function HomePage() {
               />
             ) : (
               <div className="w-14 h-14 rounded-full bg-white/30 border-2 border-white flex items-center justify-center text-xl font-bold shadow">
-                {greetingName[0]}
+                {greetingInitial}
               </div>
             )}
           </Link>

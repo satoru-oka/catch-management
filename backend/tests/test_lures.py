@@ -95,16 +95,15 @@ def test_delete_lure_not_found(client, fake_db):
 def test_lure_stats_aggregates_by_lure_name(client, fake_db):
     fake_db.queue_result(
         [
-            {"lure_name": "ミノー", "lure_color": "赤金", "length_cm": 20.0},
-            {"lure_name": "ミノー", "lure_color": "赤金", "length_cm": 25.0},
-            {"lure_name": "スプーン", "lure_color": "銀", "length_cm": 30.0},
-            {"lure_name": "スプーン", "lure_color": "銀", "length_cm": None},
+            {"lure_name": "ミノー", "count": 2, "avg_length": 22.5},
+            {"lure_name": "スプーン", "count": 2, "avg_length": 30.0},
         ]
     )
 
     res = client.get("/api/lures/stats")
 
     assert res.status_code == 200
+    assert fake_db.calls[0]["table"] == "user_lure_stats"
     body = res.json()
     assert body["ミノー"]["count"] == 2
     assert body["ミノー"]["avg_length"] == 22.5
@@ -115,8 +114,7 @@ def test_lure_stats_aggregates_by_lure_name(client, fake_db):
 def test_lure_stats_groups_unknown_under_unknown_label(client, fake_db):
     fake_db.queue_result(
         [
-            {"lure_name": None, "lure_color": None, "length_cm": 18.0},
-            {"lure_name": "", "lure_color": None, "length_cm": 22.0},
+            {"lure_name": None, "count": 2, "avg_length": 20.0},
         ]
     )
 
@@ -130,7 +128,7 @@ def test_lure_stats_groups_unknown_under_unknown_label(client, fake_db):
 
 
 def test_lure_stats_avg_length_zero_when_no_lengths(client, fake_db):
-    fake_db.queue_result([{"lure_name": "ジグ", "lure_color": "黒", "length_cm": None}])
+    fake_db.queue_result([{"lure_name": "ジグ", "count": 1, "avg_length": None}])
 
     res = client.get("/api/lures/stats")
 

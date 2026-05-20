@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { FullScreenSpinner } from '@/lib/Loading'
@@ -9,6 +9,15 @@ import BottomNav from '@/components/BottomNav'
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [ready, setReady] = useState(false)
+  const handleUnauthorized = useCallback(async () => {
+    const supabase = createClient()
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // Redirect anyway; stale local auth state is worse than a failed sign-out.
+    }
+    router.replace('/login')
+  }, [router])
 
   useEffect(() => {
     const supabase = createClient()
@@ -26,12 +35,14 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) router.replace('/login')
     })
+    window.addEventListener('auth:unauthorized', handleUnauthorized)
 
     return () => {
       cancelled = true
       sub.subscription.unsubscribe()
+      window.removeEventListener('auth:unauthorized', handleUnauthorized)
     }
-  }, [router])
+  }, [handleUnauthorized, router])
 
   if (!ready) return <FullScreenSpinner />
 
