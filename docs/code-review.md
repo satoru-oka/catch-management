@@ -72,10 +72,10 @@
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
 | D-1 | 🔴 | line 10 `ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS")` が dead code (どこからも import されていない)。`main.py` が直接 `os.getenv` を呼んでいるため不要。エディタ補助 (Copilot 等) の自動挿入と推定 | **DONE** PR #7 マージ時 (commit `edea6b5`): ブランチ間で working tree が同期され当該行は存在しない |
-| D-2 | 🟡 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` の型が `str \| None` のまま narrow されない。`auth.py` で `create_client(...)` に渡す時、将来 mypy/pyright を厳格化すると警告 | **OPEN** [#9](https://github.com/satoru-oka/catch-management/issues/9): 再代入で narrow 可能 |
+| D-2 | 🟡 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` の型が `str \| None` のまま narrow されない。`auth.py` で `create_client(...)` に渡す時、将来 mypy/pyright を厳格化すると警告 | **DONE**: env 取得値を private 変数で検証後、`SUPABASE_URL: str` / `SUPABASE_ANON_KEY: str` として再代入 |
 | D-3 | 🟡 | モジュール名 `database.py` が誤誘導 (実 DB アクセスは `auth.py:get_supabase`)。`config.py` か `supabase_client.py` の方が実態に近い | **OPEN** [#10](https://github.com/satoru-oka/catch-management/issues/10): 影響範囲が広い (auth.py, テスト) ので別 PR で |
 | D-4 | 🟡 | `load_dotenv()` と `create_client()` が import 時に走る。テストで env 必須、起動エラーが import エラーとして現れる | **WONTFIX (現状)**: 個人開発スコープでは害なし。チーム拡大時に再検討 |
-| D-5 | ⚪ | `Client` 型を `auth.py` でも別途 import している。一箇所に集約可 | **OPEN** [#11](https://github.com/satoru-oka/catch-management/issues/11): やるかやらないかもトリアージ |
+| D-5 | ⚪ | `Client` 型を `auth.py` でも別途 import している。一箇所に集約可 | **WONTFIX**: `Client` は Supabase SDK の外部型なので利用箇所で import する方が自然。`database.py` から re-export すると `auth.py` の結合が増える |
 
 ---
 
@@ -100,7 +100,7 @@
 | A-2 | 🟡 | `get_supabase` がリクエスト毎に `create_client` を呼び、httpx 接続プールが生きない | **OPEN** [#14](https://github.com/satoru-oka/catch-management/issues/14): 共有 client + per-request `postgrest.auth` か lru_cache を検討 |
 | A-3 | 🟢 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` の型 narrowing が弱い | **DUPE**: D-2 で扱い済み |
 | A-4 | 🟢 | broad な `except Exception` で Supabase Auth 障害も `Invalid token` 401 にマップされる。フロントが自動ログアウトする | **OPEN** [#15](https://github.com/satoru-oka/catch-management/issues/15): `AuthRetryableError` を 503 にマップ。A-1 で自前検証化すれば不要 |
-| A-5 | ⚪ | `HTTPBearer()` の `auto_error` を明示していない | **OPEN** [#30](https://github.com/satoru-oka/catch-management/issues/30): 動作上の問題なし。明示すると意図が読みやすくなる |
+| A-5 | ⚪ | `HTTPBearer()` の `auto_error` を明示していない | **DONE**: `HTTPBearer(auto_error=True)` で認証必須 API の意図を明示 |
 
 ---
 
@@ -120,9 +120,9 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| S-1 | 🟢 | `create_spot` のみ `model_dump()` で None を含めて INSERT。他 router と挙動が違う | **OPEN** (X-3 で扱う) [#21](https://github.com/satoru-oka/catch-management/issues/21) |
+| S-1 | 🟢 | `create_spot` のみ `model_dump()` で None を含めて INSERT。他 router と挙動が違う | **DONE**: `create_spot` も None フィールドを除外して INSERT する形に統一 |
 | S-2 | 🟢 | `update_spot` は None を除外するため、フィールドを NULL にクリアできない | **OPEN** (X-2 で扱う) [#20](https://github.com/satoru-oka/catch-management/issues/20) |
-| S-3 | ⚪ | line 1 が空行 (Ruff 整理の残骸)。意味なし | **OPEN** [#32](https://github.com/satoru-oka/catch-management/issues/32): 1 文字削除 |
+| S-3 | ⚪ | line 1 が空行 (Ruff 整理の残骸)。意味なし | **DONE**: 先頭空行を削除 |
 | S-4 | 🟢 | `list_spot_sessions` にページング無し | **OPEN** (X-1 で扱う) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
 | S-5 | ⚪ | `list_spots` に並び順指定なし。フロントの追加順依存 | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): `.order("name")` 追加が自然 |
 
@@ -147,7 +147,7 @@
 | SS-1 | 🟡 | `monthly_stats` が全行フェッチ → Python 集計。データ増加で線形劣化 | **OPEN** [#18](https://github.com/satoru-oka/catch-management/issues/18) |
 | SS-2 | 🟡 | `list_sessions` にページング無し | **OPEN** (X-1 で扱う) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
 | SS-3 | 🟢 | `update_session` は None を除外するためフィールドクリア不可 | **OPEN** (X-2 で扱う) [#20](https://github.com/satoru-oka/catch-management/issues/20) |
-| SS-4 | 🟢 | `if "date" in data: data["date"] = str(...)` を 3 フィールドで繰り返し。Pydantic v2 の `model_dump(mode="json")` で自動化可能 | **OPEN** [#31](https://github.com/satoru-oka/catch-management/issues/31): リファクタの候補 |
+| SS-4 | 🟢 | `if "date" in data: data["date"] = str(...)` を 3 フィールドで繰り返し。Pydantic v2 の `model_dump(mode="json")` で自動化可能 | **DONE**: `SessionCreate` / `SessionUpdate` を `model_dump(mode="json")` ベースに変更 |
 | SS-5 | 🟢 | `monthly_stats` が期間 (年月範囲) を絞らない。長期運用すると全月返す | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): クエリパラメータ追加で対応 |
 
 ---
@@ -207,7 +207,7 @@
 |---|---|---|---|---|
 | X-1 | 🟡 | list 系エンドポイントに **ページング無し** | spots / sessions / catches / lures (5 endpoint) | **OPEN** [#19](https://github.com/satoru-oka/catch-management/issues/19) |
 | X-2 | 🟡 | PUT で `if v is not None` フィルタにより **NULL クリア不可** | spots / sessions / catches / lures (4 endpoint) | **OPEN** [#20](https://github.com/satoru-oka/catch-management/issues/20) |
-| X-3 | 🟢 | INSERT の None 扱いが [spots.py:39](backend/routers/spots.py#L39) のみ非対称 | spots vs others | **OPEN** [#21](https://github.com/satoru-oka/catch-management/issues/21) |
+| X-3 | 🟢 | INSERT の None 扱いが [spots.py:39](backend/routers/spots.py#L39) のみ非対称 | spots vs others | **DONE**: `create_spot` を他 router と同じ None 除外パターンに統一 |
 
 ---
 
@@ -221,7 +221,7 @@
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
 | C-6 | 🟢 | `list_catches` の `ilike("lure_name", f"%{lure_name}%")` ([catches.py:62](backend/routers/catches.py#L62)) が `%` / `_` をエスケープしていない。「100%」検索でワイルドカード扱いになる。supabase-py が SQL インジェクションは防ぐので脆弱性ではなく UX | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): 入力を `.replace("%", r"\%").replace("_", r"\_")` で前処理 |
-| L-5 | ⚪ | `routers/lures.py` 冒頭が空行 ([lures.py:1](backend/routers/lures.py#L1))。S-3 と同じ Ruff 整理残骸 | **OPEN** [#32](https://github.com/satoru-oka/catch-management/issues/32): 1 文字削除 |
+| L-5 | ⚪ | `routers/lures.py` 冒頭が空行 ([lures.py:1](backend/routers/lures.py#L1))。S-3 と同じ Ruff 整理残骸 | **DONE**: 先頭空行を削除 |
 | X-4 | 🟡 | RLS 一元依存だが、**クロステナント GET スモークテスト** が無い。RLS が事故で外れると anon key 経由で他人のデータが見える | **OPEN** [#24](https://github.com/satoru-oka/catch-management/issues/24): `tests/integration/test_rls.py` で user A/B fixture を立て、spots / sessions / catches / lures の 4 テーブルに対し「B のトークンで A のレコード ID を select.eq → 空配列」を assert |
 | X-5 | 🟢 | `create_*` のみ `get_current_user` 依存、`update_*` / `delete_*` は依存無し (RLS 任せ) の **非対称**。読み手が「create だけユーザー必須」と誤読する余地 | **OPEN** [#27](https://github.com/satoru-oka/catch-management/issues/27): 全部から外して RLS 一本化するか、コメントで意図を残す |
 
@@ -340,7 +340,7 @@
 | # | 重要度 | 内容 | 影響範囲 | 状況 |
 |---|---|---|---|---|
 | FX-1 | 🟡 | フォーム edit 系で「空文字を送らない」回避策で NULL クリア不可。X-2 の表側 | sessions/[id]/edit, catches/[catchId]/edit, lures, spots | **OPEN** [#38](https://github.com/satoru-oka/catch-management/issues/38): X-2 (backend で `exclude_unset=True`) 解消後に撤去 |
-| FX-2 | 🟢 | `useEffect` の依存配列が `apiFetch` などモジュールスコープ関数を省略している箇所多数 | (protected) 配下のページほぼ全部 | **OPEN** [#28](https://github.com/satoru-oka/catch-management/issues/28): `eslint-plugin-react-hooks` の `exhaustive-deps` 有効化 |
+| FX-2 | 🟢 | `useEffect` の依存配列が `apiFetch` などモジュールスコープ関数を省略している箇所多数 | (protected) 配下のページほぼ全部 | **DONE**: Next.js の hooks lint を CI で `npm run lint -- --max-warnings=0` として継続実行 |
 
 ---
 

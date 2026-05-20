@@ -4,7 +4,7 @@ from supabase import Client, create_client
 
 from database import SUPABASE_ANON_KEY, SUPABASE_URL, supabase
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=True)
 
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> str:
