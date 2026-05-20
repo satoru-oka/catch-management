@@ -242,7 +242,7 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| FS-1 | 🔴 | `process.env.NEXT_PUBLIC_SUPABASE_URL!` / `NEXT_PUBLIC_SUPABASE_ANON_KEY!` の **non-null 断言** で握りつぶし ([supabase.ts:8-9](frontend/lib/supabase.ts#L8-L9))。未設定時は "createClient is not a function" 系の難読ランタイムエラー。`backend/database.py:11` と同じく明示 throw に統一すべき | **OPEN** [#23](https://github.com/satoru-oka/catch-management/issues/23) |
+| FS-1 | 🔴 | `process.env.NEXT_PUBLIC_SUPABASE_URL!` / `NEXT_PUBLIC_SUPABASE_ANON_KEY!` の **non-null 断言** で握りつぶし ([supabase.ts:8-9](frontend/lib/supabase.ts#L8-L9))。未設定時は "createClient is not a function" 系の難読ランタイムエラー。`backend/database.py:11` と同じく明示 throw に統一すべき | **DONE**: `createClient()` が env 欠落時に明示的な Error を投げるようにし、単体テストを追加 |
 
 ---
 
