@@ -262,7 +262,7 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| FA-1 | 🟡 | 401 ハンドリングが `apiFetch` 内と `(protected)/layout.tsx` の `onAuthStateChange` で **2 箇所**並走 ([api.ts:50-53](frontend/lib/api.ts#L50-L53), [(protected)/layout.tsx:26-28](frontend/app/(protected)/layout.tsx#L26-L28))。経路二重で保守時に片方だけ直す事故が起きやすい | **OPEN** [#34](https://github.com/satoru-oka/catch-management/issues/34): layout に集約 (apiFetch は `throw ApiError(401)` のみ) か、逆に apiFetch 一本化 |
+| FA-1 | 🟡 | 401 ハンドリングが `apiFetch` 内と `(protected)/layout.tsx` の `onAuthStateChange` で **2 箇所**並走 ([api.ts:50-53](frontend/lib/api.ts#L50-L53), [(protected)/layout.tsx:26-28](frontend/app/(protected)/layout.tsx#L26-L28))。経路二重で保守時に片方だけ直す事故が起きやすい | **DONE**: `apiFetch` は 401 を `UNAUTHORIZED_EVENT` と `ApiError` で通知するだけにし、`signOut` / `/login` 遷移は protected layout に集約 |
 | FA-2 | 🟢 | `handleUnauthorized` が `window.location.href` でフルリロード ([api.ts:28](frontend/lib/api.ts#L28))。SPA 状態を捨てるが、認証失敗時は stale state を消したいので意図的と推定 | **WONTFIX (現状)**: コメントで「意図」を 1 行残すと親切 |
 
 ---

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
+export const UNAUTHORIZED_EVENT = 'catch-management:unauthorized'
 
 export class ApiError extends Error {
   status: number
@@ -18,14 +19,9 @@ async function getToken() {
   return data.session?.access_token ?? null
 }
 
-async function handleUnauthorized() {
+function notifyUnauthorized() {
   if (typeof window === 'undefined') return
-  try {
-    await createClient().auth.signOut()
-  } catch {
-    // ignore
-  }
-  window.location.href = '/login'
+  window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
 }
 
 export async function apiFetch<T = unknown>(
@@ -34,7 +30,7 @@ export async function apiFetch<T = unknown>(
 ): Promise<T> {
   const token = await getToken()
   if (!token) {
-    await handleUnauthorized()
+    notifyUnauthorized()
     throw new ApiError(401, 'Not authenticated')
   }
 
@@ -48,7 +44,7 @@ export async function apiFetch<T = unknown>(
   })
 
   if (res.status === 401) {
-    await handleUnauthorized()
+    notifyUnauthorized()
     throw new ApiError(401, 'Unauthorized')
   }
 

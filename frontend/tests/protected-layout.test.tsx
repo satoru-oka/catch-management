@@ -4,23 +4,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const replace = vi.fn()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace }),
+  usePathname: () => '/',
 }))
 
 const getSession = vi.fn()
 const onAuthStateChange = vi.fn()
+const signOut = vi.fn()
 const unsubscribe = vi.fn()
 vi.mock('@/lib/supabase', () => ({
   createClient: () => ({
-    auth: { getSession, onAuthStateChange },
+    auth: { getSession, onAuthStateChange, signOut },
   }),
 }))
 
 import ProtectedLayout from '@/app/(protected)/layout'
+import { UNAUTHORIZED_EVENT } from '@/lib/api'
 
 beforeEach(() => {
   replace.mockReset()
   getSession.mockReset()
   onAuthStateChange.mockReset()
+  signOut.mockReset()
+  signOut.mockResolvedValue(undefined)
   unsubscribe.mockReset()
   // デフォルトで onAuthStateChange は subscription オブジェクトを返す
   onAuthStateChange.mockReturnValue({
@@ -82,6 +87,36 @@ describe('ProtectedLayout', () => {
 
     // 認証が切れたイベントを発火
     authCallback?.('SIGNED_OUT', null)
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
+  })
+
+  it('unauthorized event を受けたら signOut して /login に遷移する', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'u' } } } })
+    render(
+      <ProtectedLayout>
+        <div data-testid="child">PROTECTED</div>
+      </ProtectedLayout>,
+    )
+    await screen.findByTestId('child')
+
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+
+    await waitFor(() => expect(signOut).toHaveBeenCalled())
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
+  })
+
+  it('signOut が失敗しても unauthorized event では /login に遷移する', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'u' } } } })
+    signOut.mockRejectedValueOnce(new Error('boom'))
+    render(
+      <ProtectedLayout>
+        <div data-testid="child">PROTECTED</div>
+      </ProtectedLayout>,
+    )
+    await screen.findByTestId('child')
+
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
   })
