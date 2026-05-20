@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
 import { FullScreenSpinner } from '@/lib/Loading'
@@ -87,10 +88,10 @@ export default function SessionDetailPage() {
           ) : (
             <div className="space-y-3">
               {session.catches?.map((c) => (
-                <div
+                <Link
                   key={c.id}
-                  onClick={() => router.push(`/sessions/${id}/catches/${c.id}/edit`)}
-                  className="bg-white rounded-xl shadow-sm p-4 cursor-pointer hover:shadow-md transition"
+                  href={`/sessions/${id}/catches/${c.id}/edit`}
+                  className="block bg-white rounded-xl shadow-sm p-4 hover:shadow-md transition"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-gray-800">{c.fish_species}</span>
@@ -103,7 +104,7 @@ export default function SessionDetailPage() {
                     🎣 {c.lure_name ?? '—'} {c.lure_color ? `/ ${c.lure_color}` : ''}
                   </div>
                   {c.notes && <p className="text-sm text-gray-400 mt-1">{c.notes}</p>}
-                </div>
+                </Link>
               ))}
             </div>
           )}

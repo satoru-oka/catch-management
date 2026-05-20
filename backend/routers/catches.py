@@ -33,6 +33,14 @@ class CatchUpdate(BaseModel):
     notes: str | None = None
 
 
+def validate_lure_id(lure_id: str | None, db: Client) -> None:
+    if not lure_id:
+        return
+    result = db.table("lures").select("id").eq("id", lure_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="無効な lure_id です")
+
+
 @router.post("/sessions/{session_id}/catches")
 def create_catch(
     session_id: str, catch: CatchCreate, db: Client = Depends(get_supabase)
@@ -41,10 +49,9 @@ def create_catch(
     session = db.table("sessions").select("id").eq("id", session_id).execute()
     if not session.data:
         raise HTTPException(status_code=404, detail="釣行が見つかりません")
-    data = {k: v for k, v in catch.model_dump().items() if v is not None}
+    validate_lure_id(catch.lure_id, db)
+    data = {k: v for k, v in catch.model_dump(mode="json").items() if v is not None}
     data["session_id"] = session_id
-    if "caught_at" in data:
-        data["caught_at"] = str(data["caught_at"])
     result = db.table("catches").insert(data).execute()
     return result.data[0]
 
@@ -81,9 +88,9 @@ def get_catch(catch_id: str, db: Client = Depends(get_supabase)):
 def update_catch(
     catch_id: str, catch: CatchUpdate, db: Client = Depends(get_supabase)
 ):
-    data = {k: v for k, v in catch.model_dump().items() if v is not None}
-    if "caught_at" in data:
-        data["caught_at"] = str(data["caught_at"])
+    data = catch.model_dump(mode="json", exclude_unset=True)
+    if data.get("lure_id") is not None:
+        validate_lure_id(data["lure_id"], db)
     result = db.table("catches").update(data).eq("id", catch_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="釣果が見つかりません")

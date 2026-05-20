@@ -78,7 +78,7 @@ def test_get_session_not_found(client, fake_db):
     assert res.json()["detail"] == "釣行が見つかりません"
 
 
-def test_update_session_strips_none(client, fake_db):
+def test_update_session_preserves_explicit_none(client, fake_db):
     fake_db.queue_result([{"id": "ses1", "weather": "晴れ"}])
 
     res = client.put(
@@ -89,7 +89,17 @@ def test_update_session_strips_none(client, fake_db):
     assert res.status_code == 200
     update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
     data = update_op[1][0]
-    assert data == {"weather": "晴れ"}
+    assert data == {"weather": "晴れ", "notes": None}
+
+
+def test_update_session_leaves_unset_fields_out(client, fake_db):
+    fake_db.queue_result([{"id": "ses1", "weather": "晴れ"}])
+
+    res = client.put("/api/sessions/ses1", json={"weather": "晴れ"})
+
+    assert res.status_code == 200
+    update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
+    assert update_op[1][0] == {"weather": "晴れ"}
 
 
 def test_update_session_with_date_field(client, fake_db):
