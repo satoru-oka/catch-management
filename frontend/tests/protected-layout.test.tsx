@@ -9,10 +9,11 @@ vi.mock('next/navigation', () => ({
 
 const getSession = vi.fn()
 const onAuthStateChange = vi.fn()
+const signOut = vi.fn()
 const unsubscribe = vi.fn()
 vi.mock('@/lib/supabase', () => ({
   createClient: () => ({
-    auth: { getSession, onAuthStateChange },
+    auth: { getSession, onAuthStateChange, signOut },
   }),
 }))
 
@@ -22,6 +23,8 @@ beforeEach(() => {
   replace.mockReset()
   getSession.mockReset()
   onAuthStateChange.mockReset()
+  signOut.mockReset()
+  signOut.mockResolvedValue(undefined)
   unsubscribe.mockReset()
   // デフォルトで onAuthStateChange は subscription オブジェクトを返す
   onAuthStateChange.mockReturnValue({
@@ -83,6 +86,36 @@ describe('ProtectedLayout', () => {
 
     // 認証が切れたイベントを発火
     authCallback?.('SIGNED_OUT', null)
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
+  })
+
+  it('auth:unauthorized イベントで signOut して /login に遷移する', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'u' } } } })
+    render(
+      <ProtectedLayout>
+        <div data-testid="child">PROTECTED</div>
+      </ProtectedLayout>,
+    )
+    await screen.findByTestId('child')
+
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+
+    await waitFor(() => expect(signOut).toHaveBeenCalled())
+    expect(replace).toHaveBeenCalledWith('/login')
+  })
+
+  it('auth:unauthorized の signOut が失敗しても /login に遷移する', async () => {
+    getSession.mockResolvedValue({ data: { session: { user: { id: 'u' } } } })
+    signOut.mockRejectedValueOnce(new Error('boom'))
+    render(
+      <ProtectedLayout>
+        <div data-testid="child">PROTECTED</div>
+      </ProtectedLayout>,
+    )
+    await screen.findByTestId('child')
+
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'))
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
   })

@@ -142,16 +142,15 @@ def test_delete_session_not_found(client, fake_db):
 def test_monthly_stats_aggregates_by_month(client, fake_db):
     fake_db.queue_result(
         [
-            {"date": "2026-05-01", "catches": [{"id": "c1"}, {"id": "c2"}]},
-            {"date": "2026-05-15", "catches": [{"id": "c3"}]},
-            {"date": "2026-04-20", "catches": []},
-            {"date": "2026-04-10", "catches": [{"id": "c4"}]},
+            {"month": "2026-05", "session_count": 2, "catch_count": 3},
+            {"month": "2026-04", "session_count": 2, "catch_count": 1},
         ]
     )
 
     res = client.get("/api/sessions/stats/monthly")
 
     assert res.status_code == 200
+    assert fake_db.calls[0]["table"] == "user_monthly_session_stats"
     body = res.json()
     assert body["2026-05"] == {"session_count": 2, "catch_count": 3}
     assert body["2026-04"] == {"session_count": 2, "catch_count": 1}
@@ -164,13 +163,3 @@ def test_monthly_stats_empty(client, fake_db):
 
     assert res.status_code == 200
     assert res.json() == {}
-
-
-def test_monthly_stats_handles_missing_catches_key(client, fake_db):
-    """`catches` キーが無くても KeyError にならない。"""
-    fake_db.queue_result([{"date": "2026-05-01"}])
-
-    res = client.get("/api/sessions/stats/monthly")
-
-    assert res.status_code == 200
-    assert res.json()["2026-05"] == {"session_count": 1, "catch_count": 0}

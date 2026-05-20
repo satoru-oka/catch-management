@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import os
 
-# database.py は import 時に環境変数を要求するのでダミー値を流し込む。
+# supabase_client.py は import 時に環境変数を要求するのでダミー値を流し込む。
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
+os.environ.setdefault("SUPABASE_JWT_SECRET", "unit-test-secret")
 
 from typing import Any
 

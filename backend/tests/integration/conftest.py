@@ -6,10 +6,10 @@
 
 設計メモ:
   - `tests/conftest.py` がモジュール load 時にダミーの SUPABASE_URL/ANON_KEY を
-    `os.environ.setdefault(...)` でセットしているため、`database.py` は import 済み
+    `os.environ.setdefault(...)` でセットしているため、`supabase_client.py` は import 済み
     だが内部の `supabase` クライアントはダミー URL を向いている。
-  - integration では `_patch_database_module` セッション fixture で
-    `database.supabase` / `auth.supabase` を **テスト用 Supabase の本物クライアント**
+  - integration では `_patch_supabase_module` セッション fixture で
+    `supabase_client.supabase` / `auth.supabase` を **テスト用 Supabase の本物クライアント**
     に差し替える (URL / anon_key も同期)。
   - `auth.get_supabase` はリクエストごとに `create_client(SUPABASE_URL, SUPABASE_ANON_KEY)`
     を呼ぶので、上記 URL/KEY 変数の差し替えで自動的にテスト DB を向く。
@@ -40,10 +40,28 @@ REQUIRED_ENV_VARS = (
     "TEST_SUPABASE_SERVICE_ROLE_KEY",
 )
 
+PLACEHOLDER_ENV_VALUES = {
+    # Repository-local examples should not make the full pytest suite try to
+    # reach a non-existent Supabase project.
+    "TEST_SUPABASE_URL": {
+        "https://your-test-project.supabase.co",
+        "https://xdbqwfwlytrhkkfpczln.supabase.co",
+    },
+    "TEST_SUPABASE_ANON_KEY": {"your-anon-public-key"},
+    "TEST_SUPABASE_SERVICE_ROLE_KEY": {"your-service-role-key"},
+}
+
+
+def _configured_env_value(name: str) -> str | None:
+    value = os.getenv(name)
+    if not value or value in PLACEHOLDER_ENV_VALUES.get(name, set()):
+        return None
+    return value
+
 
 def pytest_collection_modifyitems(config, items):
     """integration マーカー付きテストを ENV 未設定時は skip にする。"""
-    missing = [v for v in REQUIRED_ENV_VARS if not os.getenv(v)]
+    missing = [v for v in REQUIRED_ENV_VARS if not _configured_env_value(v)]
     if not missing:
         return
     skip_marker = pytest.mark.skip(
@@ -55,7 +73,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 def _has_required_env() -> bool:
-    return all(os.getenv(v) for v in REQUIRED_ENV_VARS)
+    return all(_configured_env_value(v) for v in REQUIRED_ENV_VARS)
 
 
 @pytest.fixture(scope="session")
@@ -73,8 +91,8 @@ def admin_supabase():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _patch_database_module():
-    """database/auth モジュールをテスト用 Supabase に向け直す。
+def _patch_supabase_module():
+    """supabase_client/auth モジュールをテスト用 Supabase に向け直す。
 
     autouse=True かつ session スコープなので、integration ディレクトリ配下の
     全テストで一度だけ反映される。値はテスト終了時に元に戻すが、ユニットテストと
@@ -87,37 +105,42 @@ def _patch_database_module():
     from supabase import create_client
 
     import auth
-    import database
+    import supabase_client
 
     original = {
-        "db_url": database.SUPABASE_URL,
-        "db_key": database.SUPABASE_ANON_KEY,
-        "db_client": database.supabase,
+        "db_url": supabase_client.SUPABASE_URL,
+        "db_key": supabase_client.SUPABASE_ANON_KEY,
+        "db_client": supabase_client.supabase,
         "auth_url": auth.SUPABASE_URL,
         "auth_key": auth.SUPABASE_ANON_KEY,
         "auth_client": auth.supabase,
+        "auth_jwt_secret": auth.SUPABASE_JWT_SECRET,
     }
 
     test_url = os.environ["TEST_SUPABASE_URL"]
     test_anon = os.environ["TEST_SUPABASE_ANON_KEY"]
     real_client = create_client(test_url, test_anon)
 
-    database.SUPABASE_URL = test_url
-    database.SUPABASE_ANON_KEY = test_anon
-    database.supabase = real_client
+    supabase_client.SUPABASE_URL = test_url
+    supabase_client.SUPABASE_ANON_KEY = test_anon
+    supabase_client.supabase = real_client
     auth.SUPABASE_URL = test_url
     auth.SUPABASE_ANON_KEY = test_anon
     auth.supabase = real_client
+    # Integration tests obtain real Supabase tokens, but the JWT secret is not
+    # part of the current test secret set. Fall back to Supabase Auth API here.
+    auth.SUPABASE_JWT_SECRET = None
 
     try:
         yield
     finally:
-        database.SUPABASE_URL = original["db_url"]
-        database.SUPABASE_ANON_KEY = original["db_key"]
-        database.supabase = original["db_client"]
+        supabase_client.SUPABASE_URL = original["db_url"]
+        supabase_client.SUPABASE_ANON_KEY = original["db_key"]
+        supabase_client.supabase = original["db_client"]
         auth.SUPABASE_URL = original["auth_url"]
         auth.SUPABASE_ANON_KEY = original["auth_key"]
         auth.supabase = original["auth_client"]
+        auth.SUPABASE_JWT_SECRET = original["auth_jwt_secret"]
 
 
 def _create_user(admin) -> dict:

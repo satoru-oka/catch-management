@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from supabase import Client
@@ -44,7 +46,12 @@ def create_lure(
 
 
 @router.put("/{lure_id}")
-def update_lure(lure_id: str, lure: LureUpdate, db: Client = Depends(get_supabase)):
+def update_lure(
+    lure_id: str,
+    lure: LureUpdate,
+    db: Client = Depends(get_supabase),
+    _user_id: str = Depends(get_current_user),
+):
     data = lure.model_dump(exclude_unset=True)
     result = db.table("lures").update(data).eq("id", lure_id).execute()
     if not result.data:
@@ -53,7 +60,11 @@ def update_lure(lure_id: str, lure: LureUpdate, db: Client = Depends(get_supabas
 
 
 @router.delete("/{lure_id}")
-def delete_lure(lure_id: str, db: Client = Depends(get_supabase)):
+def delete_lure(
+    lure_id: str,
+    db: Client = Depends(get_supabase),
+    _user_id: str = Depends(get_current_user),
+):
     result = db.table("lures").delete().eq("id", lure_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ルアーが見つかりません")
@@ -62,6 +73,17 @@ def delete_lure(lure_id: str, db: Client = Depends(get_supabase)):
 
 @router.get("/stats")
 def lure_stats(db: Client = Depends(get_supabase)):
+    try:
+        result = (
+            db.table("user_lure_stats")
+            .select("lure_name, count, avg_length")
+            .execute()
+        )
+        return _format_lure_stats_rows(result.data)
+    except Exception as e:
+        if not _is_missing_stats_view_error(e):
+            raise
+
     # RLSによりログインユーザーのcatchesのみ取得される
     result = db.table("catches").select("lure_name, lure_color, length_cm").execute()
     stats = {}
@@ -70,10 +92,31 @@ def lure_stats(db: Client = Depends(get_supabase)):
         if key not in stats:
             stats[key] = {"count": 0, "avg_length": 0, "lengths": []}
         stats[key]["count"] += 1
-        if catch.get("length_cm"):
+        if catch.get("length_cm") is not None:
             stats[key]["lengths"].append(catch["length_cm"])
     for key in stats:
         lengths = stats[key].pop("lengths")
         if lengths:
             stats[key]["avg_length"] = round(sum(lengths) / len(lengths), 1)
     return stats
+
+
+def _format_lure_stats_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str, float | int]]:
+    return {
+        row.get("lure_name") or "不明": {
+            "count": int(row.get("count") or 0),
+            "avg_length": float(row["avg_length"]) if row.get("avg_length") is not None else 0,
+        }
+        for row in rows
+    }
+
+
+def _is_missing_stats_view_error(exc: Exception) -> bool:
+    code = getattr(exc, "code", None)
+    if code is None and exc.args and isinstance(exc.args[0], dict):
+        code = exc.args[0].get("code")
+    message = str(exc).lower()
+    return code in {"42P01", "PGRST205"} or (
+        "user_lure_stats" in message
+        and ("does not exist" in message or "could not find" in message)
+    )

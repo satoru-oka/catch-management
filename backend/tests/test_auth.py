@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.testclient import TestClient
+from jose import jwt
 
 import auth
 from main import app
@@ -23,6 +25,7 @@ def test_get_current_user_returns_user_id(monkeypatch):
 
     fake_auth = SimpleNamespace(get_user=lambda token: fake_response)
     monkeypatch.setattr(auth, "supabase", SimpleNamespace(auth=fake_auth))
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", None)
 
     assert auth.get_current_user(_creds("good-token")) == user_id
 
@@ -37,6 +40,7 @@ def test_get_current_user_passes_token_to_supabase(monkeypatch):
     monkeypatch.setattr(
         auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=fake_get_user))
     )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", None)
     auth.get_current_user(_creds("the-token"))
 
     assert seen["token"] == "the-token"
@@ -49,6 +53,7 @@ def test_get_current_user_no_user_raises_401(monkeypatch):
         "supabase",
         SimpleNamespace(auth=SimpleNamespace(get_user=lambda t: fake_response)),
     )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", None)
 
     with pytest.raises(HTTPException) as exc:
         auth.get_current_user(_creds())
@@ -64,9 +69,66 @@ def test_get_current_user_supabase_error_raises_401(monkeypatch):
     monkeypatch.setattr(
         auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))
     )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", None)
 
     with pytest.raises(HTTPException) as exc:
         auth.get_current_user(_creds())
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Invalid token"
+
+
+def test_get_current_user_verifies_jwt_locally(monkeypatch):
+    secret = "local-secret"
+    user_id = "11111111-2222-3333-4444-555555555555"
+    token = jwt.encode(
+        {
+            "sub": user_id,
+            "aud": "authenticated",
+            "exp": dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5),
+        },
+        secret,
+        algorithm="HS256",
+    )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", secret)
+
+    assert auth.get_current_user(_creds(token)) == user_id
+
+
+def test_get_current_user_invalid_signature_raises_401(monkeypatch):
+    token = jwt.encode(
+        {
+            "sub": "11111111-2222-3333-4444-555555555555",
+            "aud": "authenticated",
+            "exp": dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5),
+        },
+        "right-secret",
+        algorithm="HS256",
+    )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", "wrong-secret")
+
+    with pytest.raises(HTTPException) as exc:
+        auth.get_current_user(_creds(token))
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Invalid token"
+
+
+def test_get_current_user_expired_token_raises_401(monkeypatch):
+    secret = "local-secret"
+    token = jwt.encode(
+        {
+            "sub": "11111111-2222-3333-4444-555555555555",
+            "aud": "authenticated",
+            "exp": dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=1),
+        },
+        secret,
+        algorithm="HS256",
+    )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", secret)
+
+    with pytest.raises(HTTPException) as exc:
+        auth.get_current_user(_creds(token))
 
     assert exc.value.status_code == 401
     assert exc.value.detail == "Invalid token"

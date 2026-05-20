@@ -14,24 +14,13 @@ vi.mock('@/lib/supabase', () => ({
 
 import { ApiError, apiFetch } from '@/lib/api'
 
-const ORIGINAL_LOCATION = window.location
-
 beforeEach(() => {
   getSession.mockReset()
   signOut.mockClear()
   signOut.mockResolvedValue(undefined)
-  // window.location.href への代入を観測できるようにする
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    value: { href: '' },
-  })
 })
 
 afterEach(() => {
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    value: ORIGINAL_LOCATION,
-  })
   vi.unstubAllGlobals()
 })
 
@@ -85,26 +74,38 @@ describe('apiFetch', () => {
     })
   })
 
-  it('セッション無しなら 401 ApiError を投げ、/login にリダイレクトする', async () => {
+  it('セッション無しなら 401 ApiError を投げ、認証切れイベントを通知する', async () => {
     getSession.mockResolvedValue({ data: { session: null } })
     const fetchMock = mockFetch({ ok: true, status: 200 })
+    const unauthorized = vi.fn()
+    window.addEventListener('auth:unauthorized', unauthorized)
 
-    await expect(apiFetch('/api/spots/')).rejects.toMatchObject({
-      status: 401,
-      detail: 'Not authenticated',
-    })
-    expect(fetchMock).not.toHaveBeenCalled()
-    expect(signOut).toHaveBeenCalled()
-    expect(window.location.href).toBe('/login')
+    try {
+      await expect(apiFetch('/api/spots/')).rejects.toMatchObject({
+        status: 401,
+        detail: 'Not authenticated',
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(signOut).not.toHaveBeenCalled()
+      expect(unauthorized).toHaveBeenCalledTimes(1)
+    } finally {
+      window.removeEventListener('auth:unauthorized', unauthorized)
+    }
   })
 
-  it('レスポンス 401 でも /login へリダイレクトしてエラーを投げる', async () => {
+  it('レスポンス 401 でも認証切れイベントを通知してエラーを投げる', async () => {
     getSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } })
     mockFetch({ ok: false, status: 401, jsonBody: { detail: 'Token expired' } })
+    const unauthorized = vi.fn()
+    window.addEventListener('auth:unauthorized', unauthorized)
 
-    await expect(apiFetch('/api/spots/')).rejects.toBeInstanceOf(ApiError)
-    expect(signOut).toHaveBeenCalled()
-    expect(window.location.href).toBe('/login')
+    try {
+      await expect(apiFetch('/api/spots/')).rejects.toBeInstanceOf(ApiError)
+      expect(signOut).not.toHaveBeenCalled()
+      expect(unauthorized).toHaveBeenCalledTimes(1)
+    } finally {
+      window.removeEventListener('auth:unauthorized', unauthorized)
+    }
   })
 
   it('4xx/5xx エラーで body の detail を使った ApiError を投げる', async () => {
@@ -145,13 +146,6 @@ describe('apiFetch', () => {
     expect(result).toBeUndefined()
   })
 
-  it('signOut が失敗しても 401 のリダイレクトは続く', async () => {
-    getSession.mockResolvedValue({ data: { session: null } })
-    signOut.mockRejectedValueOnce(new Error('boom'))
-
-    await expect(apiFetch('/api/spots/')).rejects.toBeInstanceOf(ApiError)
-    expect(window.location.href).toBe('/login')
-  })
 })
 
 describe('ApiError', () => {

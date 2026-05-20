@@ -31,7 +31,7 @@
 ├── backend/                 # FastAPI API
 │   ├── main.py              # FastAPI app, CORS, exception handlers
 │   ├── auth.py              # JWT 検証と user-scoped Supabase client
-│   ├── database.py          # Supabase URL / anon key と認証検証用 client
+│   ├── supabase_client.py   # Supabase URL / anon key と認証検証用 client
 │   ├── routers/             # spots / sessions / catches / lures
 │   └── tests/               # pytest unit + integration tests
 ├── frontend/                # Next.js App Router app
@@ -80,6 +80,7 @@ cp .env.example .env
 ```env
 SUPABASE_URL=https://xxxx.supabase.co
 SUPABASE_ANON_KEY=your_anon_key_here
+SUPABASE_JWT_SECRET=your_jwt_secret_here
 ALLOWED_ORIGINS=http://localhost:3000
 ```
 

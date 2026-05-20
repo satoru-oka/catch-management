@@ -50,7 +50,12 @@ def get_spot(spot_id: str, db: Client = Depends(get_supabase)):
 
 
 @router.put("/{spot_id}")
-def update_spot(spot_id: str, spot: SpotUpdate, db: Client = Depends(get_supabase)):
+def update_spot(
+    spot_id: str,
+    spot: SpotUpdate,
+    db: Client = Depends(get_supabase),
+    _user_id: str = Depends(get_current_user),
+):
     data = spot.model_dump(exclude_unset=True)
     result = db.table("spots").update(data).eq("id", spot_id).execute()
     if not result.data:
@@ -59,7 +64,11 @@ def update_spot(spot_id: str, spot: SpotUpdate, db: Client = Depends(get_supabas
 
 
 @router.delete("/{spot_id}")
-def delete_spot(spot_id: str, db: Client = Depends(get_supabase)):
+def delete_spot(
+    spot_id: str,
+    db: Client = Depends(get_supabase),
+    _user_id: str = Depends(get_current_user),
+):
     result = db.table("spots").delete().eq("id", spot_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ポイントが見つかりません")

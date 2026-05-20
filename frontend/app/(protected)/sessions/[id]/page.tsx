@@ -98,7 +98,8 @@ export default function SessionDetailPage() {
                     <span className="text-sm text-gray-400">{c.is_released ? 'リリース' : 'キープ'}</span>
                   </div>
                   <div className="text-sm text-gray-500 mt-1">
-                    {c.length_cm && `${c.length_cm}cm`}{c.weight_g && ` / ${c.weight_g}g`}
+                    {c.length_cm != null ? `${c.length_cm}cm` : '—'}
+                    {c.weight_g != null ? ` / ${c.weight_g}g` : ''}
                   </div>
                   <div className="text-sm text-gray-400 mt-1">
                     🎣 {c.lure_name ?? '—'} {c.lure_color ? `/ ${c.lure_color}` : ''}
