@@ -84,15 +84,14 @@ describe('SessionDetailPage', () => {
     expect(screen.getByText('釣果 (0匹)')).toBeInTheDocument()
   })
 
-  it('釣果カードクリックで編集ページへ遷移', async () => {
+  it('釣果カードは編集ページへのリンクとしてフォーカスできる', async () => {
     apiFetch.mockResolvedValueOnce(sessionDetail)
     render(<SessionDetailPage />)
-    await screen.findByText('ヤマメ')
-    const user = userEvent.setup()
+    const catchLink = await screen.findByRole('link', { name: /ヤマメ/ })
 
-    await user.click(screen.getByText('ヤマメ'))
-
-    expect(push).toHaveBeenCalledWith('/sessions/ses1/catches/c1/edit')
+    catchLink.focus()
+    expect(catchLink).toHaveFocus()
+    expect(catchLink).toHaveAttribute('href', '/sessions/ses1/catches/c1/edit')
   })
 
   it('編集ボタンで編集ページへ遷移', async () => {

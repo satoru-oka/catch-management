@@ -42,6 +42,36 @@ def test_create_catch_attaches_session_id(client, fake_db):
     assert isinstance(inserted["caught_at"], str)
 
 
+def test_create_catch_rejects_unknown_lure_id(client, fake_db):
+    fake_db.queue_result([{"id": "ses1"}])  # session 存在チェック
+    fake_db.queue_result([])  # RLS により自分の lure として見つからない
+
+    res = client.post(
+        "/api/sessions/ses1/catches",
+        json={"fish_species": "ヤマメ", "lure_id": "other-user-lure"},
+    )
+
+    assert res.status_code == 400
+    assert res.json()["detail"] == "無効な lure_id です"
+    assert [call["table"] for call in fake_db.calls] == ["sessions", "lures"]
+
+
+def test_create_catch_accepts_owned_lure_id(client, fake_db):
+    fake_db.queue_result([{"id": "ses1"}])  # session 存在チェック
+    fake_db.queue_result([{"id": "l1"}])  # lure 所有確認
+    fake_db.queue_result([{"id": "c1", "session_id": "ses1", "lure_id": "l1"}])
+
+    res = client.post(
+        "/api/sessions/ses1/catches",
+        json={"fish_species": "ヤマメ", "lure_id": "l1"},
+    )
+
+    assert res.status_code == 200
+    assert [call["table"] for call in fake_db.calls] == ["sessions", "lures", "catches"]
+    insert_op = next(op for op in fake_db.calls[2]["ops"] if op[0] == "insert")
+    assert insert_op[1][0]["lure_id"] == "l1"
+
+
 def test_create_catch_session_not_found(client, fake_db):
     fake_db.queue_result([])  # session が存在しない
 
@@ -113,7 +143,7 @@ def test_get_catch_not_found(client, fake_db):
     assert res.json()["detail"] == "釣果が見つかりません"
 
 
-def test_update_catch_strips_none(client, fake_db):
+def test_update_catch_preserves_explicit_none(client, fake_db):
     fake_db.queue_result([{"id": "c1", "length_cm": 30.0}])
 
     res = client.put(
@@ -123,7 +153,39 @@ def test_update_catch_strips_none(client, fake_db):
 
     assert res.status_code == 200
     update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
+    assert update_op[1][0] == {"length_cm": 30.0, "weight_g": None}
+
+
+def test_update_catch_leaves_unset_fields_out(client, fake_db):
+    fake_db.queue_result([{"id": "c1", "length_cm": 30.0}])
+
+    res = client.put("/api/catches/c1", json={"length_cm": 30.0})
+
+    assert res.status_code == 200
+    update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
     assert update_op[1][0] == {"length_cm": 30.0}
+
+
+def test_update_catch_rejects_unknown_lure_id(client, fake_db):
+    fake_db.queue_result([])  # RLS により自分の lure として見つからない
+
+    res = client.put("/api/catches/c1", json={"lure_id": "other-user-lure"})
+
+    assert res.status_code == 400
+    assert res.json()["detail"] == "無効な lure_id です"
+    assert [call["table"] for call in fake_db.calls] == ["lures"]
+
+
+def test_update_catch_accepts_owned_lure_id(client, fake_db):
+    fake_db.queue_result([{"id": "l1"}])  # lure 所有確認
+    fake_db.queue_result([{"id": "c1", "lure_id": "l1"}])
+
+    res = client.put("/api/catches/c1", json={"lure_id": "l1"})
+
+    assert res.status_code == 200
+    assert [call["table"] for call in fake_db.calls] == ["lures", "catches"]
+    update_op = next(op for op in fake_db.calls[1]["ops"] if op[0] == "update")
+    assert update_op[1][0] == {"lure_id": "l1"}
 
 
 def test_update_catch_stringifies_caught_at(client, fake_db):

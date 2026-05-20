@@ -51,7 +51,7 @@ def get_spot(spot_id: str, db: Client = Depends(get_supabase)):
 
 @router.put("/{spot_id}")
 def update_spot(spot_id: str, spot: SpotUpdate, db: Client = Depends(get_supabase)):
-    data = {k: v for k, v in spot.model_dump().items() if v is not None}
+    data = spot.model_dump(exclude_unset=True)
     result = db.table("spots").update(data).eq("id", spot_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ポイントが見つかりません")

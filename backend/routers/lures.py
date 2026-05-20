@@ -45,7 +45,7 @@ def create_lure(
 
 @router.put("/{lure_id}")
 def update_lure(lure_id: str, lure: LureUpdate, db: Client = Depends(get_supabase)):
-    data = {k: v for k, v in lure.model_dump().items() if v is not None}
+    data = lure.model_dump(exclude_unset=True)
     result = db.table("lures").update(data).eq("id", lure_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ルアーが見つかりません")

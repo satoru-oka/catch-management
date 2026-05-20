@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/navigation', () => ({
@@ -62,6 +62,7 @@ beforeEach(() => {
 })
 
 afterEach(() => vi.clearAllMocks())
+afterEach(() => vi.useRealTimers())
 
 describe('HomePage', () => {
   it('読み込み中は FullScreenSpinner', () => {
@@ -80,6 +81,34 @@ describe('HomePage', () => {
     expect(screen.getAllByText('42').length).toBeGreaterThan(0)
     expect(screen.getByText(/球磨川/)).toBeInTheDocument()
     expect(screen.getByText(/こんにちは、釣り人さん/)).toBeInTheDocument()
+  })
+
+  it('今日と今月の集計を JST の日付で計算する', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-05-31T15:30:00.000Z')) // 2026-06-01 00:30 JST
+    apiFetch.mockResolvedValueOnce([
+      {
+        ...catchRecord,
+        id: 'today',
+        caught_at: '2026-05-31T15:20:00.000Z', // 2026-06-01 00:20 JST
+      },
+      {
+        ...catchRecord,
+        id: 'yesterday',
+        caught_at: '2026-05-31T14:50:00.000Z', // 2026-05-31 23:50 JST
+      },
+    ])
+    apiFetch.mockResolvedValueOnce([session])
+
+    render(<HomePage />)
+
+    expect((await screen.findAllByText('ブラックバス')).length).toBeGreaterThan(0)
+    const todaySection = screen.getByText('今日の釣果').closest('section')
+    expect(todaySection).not.toBeNull()
+    expect(within(todaySection as HTMLElement).getByText('6月1日(月)')).toBeInTheDocument()
+    expect(within(todaySection as HTMLElement).getByText('1')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /今月の釣果/ })).toHaveTextContent('1匹')
+    expect(screen.getByRole('link', { name: /今月の釣果/ })).toHaveTextContent('06月')
   })
 
   it('履歴 0 件で空状態の案内が出る', async () => {

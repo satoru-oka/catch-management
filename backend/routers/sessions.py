@@ -93,7 +93,7 @@ def get_session(session_id: str, db: Client = Depends(get_supabase)):
 def update_session(
     session_id: str, session: SessionUpdate, db: Client = Depends(get_supabase)
 ):
-    data = {k: v for k, v in session.model_dump(mode="json").items() if v is not None}
+    data = session.model_dump(mode="json", exclude_unset=True)
     result = db.table("sessions").update(data).eq("id", session_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="釣行が見つかりません")
