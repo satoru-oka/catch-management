@@ -1,12 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { apiFetch, ApiError } from '@/lib/api'
-import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
-import { LIST_PAGE_SIZE, withPagination } from '@/lib/pagination'
 import type { Lure } from '@/lib/types'
+import { useResourceList } from '@/lib/useResourceList'
 
 type FormState = {
   name: string
@@ -17,112 +14,43 @@ type FormState = {
   notes: string
 }
 
-const emptyForm: FormState = { name: '', type: '', color: '', length_mm: '', weight_g: '', notes: '' }
-const nullableFields = ['type', 'color', 'length_mm', 'weight_g', 'notes']
-const numberFields = ['length_mm', 'weight_g']
-
-const fromLure = (l: Lure): FormState => ({
-  name: l.name,
-  type: l.type ?? '',
-  color: l.color ?? '',
-  length_mm: l.length_mm?.toString() ?? '',
-  weight_g: l.weight_g?.toString() ?? '',
-  notes: l.notes ?? '',
-})
-
-const toPayload = (f: FormState, nullEmpty = false) =>
-  buildFormPayload(f, {
-    nullableFields: nullEmpty ? nullableFields : [],
-    numberFields,
-  })
+const EMPTY_FORM: FormState = { name: '', type: '', color: '', length_mm: '', weight_g: '', notes: '' }
+const NULLABLE_FIELDS = ['type', 'color', 'length_mm', 'weight_g', 'notes'] as const
+const NUMBER_FIELDS = ['length_mm', 'weight_g'] as const
 
 export default function LuresPage() {
   const router = useRouter()
-  const [lures, setLures] = useState<Lure[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<FormState>(emptyForm)
-
-  const loadPage = useCallback((offset = 0) =>
-    apiFetch<Lure[]>(
-      withPagination('/api/lures', { limit: LIST_PAGE_SIZE, offset }),
-    )
-      .then((page) => {
-        setLures((current) => (offset === 0 ? page : [...current, ...page]))
-        setHasMore(page.length === LIST_PAGE_SIZE)
-      })
-      .catch((e: ApiError) => setError(e.detail)), [])
-
-  const reload = useCallback(() => loadPage(0), [loadPage])
-
-  useEffect(() => {
-    reload().finally(() => setLoading(false))
-  }, [reload])
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
-  ) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
-
-  const startCreate = () => {
-    setEditingId(null)
-    setForm(emptyForm)
-    setShowForm(true)
-  }
-
-  const startEdit = (l: Lure) => {
-    setEditingId(l.id)
-    setForm(fromLure(l))
-    setShowForm(true)
-  }
-
-  const cancel = () => {
-    setShowForm(false)
-    setEditingId(null)
-    setForm(emptyForm)
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      if (editingId) {
-        await apiFetch<Lure>(`/api/lures/${editingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(toPayload(form, true)),
-        })
-      } else {
-        await apiFetch<Lure>('/api/lures', {
-          method: 'POST',
-          body: JSON.stringify(toPayload(form)),
-        })
-      }
-      cancel()
-      await reload()
-    } catch (e) {
-      alert(e instanceof ApiError ? e.detail : '保存に失敗しました')
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('このルアーを削除しますか?')) return
-    try {
-      await apiFetch(`/api/lures/${id}`, { method: 'DELETE' })
-      setLures(lures.filter((l) => l.id !== id))
-    } catch (e) {
-      alert(e instanceof ApiError ? e.detail : '削除に失敗しました')
-    }
-  }
-
-  const loadMore = async () => {
-    setLoadingMore(true)
-    await loadPage(lures.length)
-    setLoadingMore(false)
-  }
+  const {
+    items: lures,
+    loading,
+    loadingMore,
+    hasMore,
+    error,
+    showForm,
+    editingId,
+    form,
+    handleChange,
+    startCreate,
+    startEdit,
+    cancel,
+    handleSubmit,
+    handleDelete,
+    loadMore,
+  } = useResourceList<Lure, FormState>({
+    endpoint: '/api/lures',
+    emptyForm: EMPTY_FORM,
+    fromEntity: (l) => ({
+      name: l.name,
+      type: l.type ?? '',
+      color: l.color ?? '',
+      length_mm: l.length_mm?.toString() ?? '',
+      weight_g: l.weight_g?.toString() ?? '',
+      notes: l.notes ?? '',
+    }),
+    nullableFields: NULLABLE_FIELDS,
+    numberFields: NUMBER_FIELDS,
+    deleteConfirm: 'このルアーを削除しますか?',
+  })
 
   if (loading) return <FullScreenSpinner />
 

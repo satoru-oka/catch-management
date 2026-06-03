@@ -1,12 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { apiFetch, ApiError } from '@/lib/api'
-import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
-import { LIST_PAGE_SIZE, withPagination } from '@/lib/pagination'
 import type { Spot } from '@/lib/types'
+import { useResourceList } from '@/lib/useResourceList'
 
 type FormState = {
   name: string
@@ -16,109 +13,42 @@ type FormState = {
   notes: string
 }
 
-const emptyForm: FormState = { name: '', river_name: '', latitude: '', longitude: '', notes: '' }
-const nullableFields = ['river_name', 'latitude', 'longitude', 'notes']
-const numberFields = ['latitude', 'longitude']
-
-const fromSpot = (s: Spot): FormState => ({
-  name: s.name,
-  river_name: s.river_name ?? '',
-  latitude: s.latitude?.toString() ?? '',
-  longitude: s.longitude?.toString() ?? '',
-  notes: s.notes ?? '',
-})
-
-const toPayload = (f: FormState, nullEmpty = false) =>
-  buildFormPayload(f, {
-    nullableFields: nullEmpty ? nullableFields : [],
-    numberFields,
-  })
+const EMPTY_FORM: FormState = { name: '', river_name: '', latitude: '', longitude: '', notes: '' }
+const NULLABLE_FIELDS = ['river_name', 'latitude', 'longitude', 'notes'] as const
+const NUMBER_FIELDS = ['latitude', 'longitude'] as const
 
 export default function SpotsPage() {
   const router = useRouter()
-  const [spots, setSpots] = useState<Spot[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<FormState>(emptyForm)
-
-  const loadPage = useCallback((offset = 0) =>
-    apiFetch<Spot[]>(
-      withPagination('/api/spots', { limit: LIST_PAGE_SIZE, offset }),
-    )
-      .then((page) => {
-        setSpots((current) => (offset === 0 ? page : [...current, ...page]))
-        setHasMore(page.length === LIST_PAGE_SIZE)
-      })
-      .catch((e: ApiError) => setError(e.detail)), [])
-
-  const reload = useCallback(() => loadPage(0), [loadPage])
-
-  useEffect(() => {
-    reload().finally(() => setLoading(false))
-  }, [reload])
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
-
-  const startCreate = () => {
-    setEditingId(null)
-    setForm(emptyForm)
-    setShowForm(true)
-  }
-
-  const startEdit = (s: Spot) => {
-    setEditingId(s.id)
-    setForm(fromSpot(s))
-    setShowForm(true)
-  }
-
-  const cancel = () => {
-    setShowForm(false)
-    setEditingId(null)
-    setForm(emptyForm)
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      if (editingId) {
-        await apiFetch<Spot>(`/api/spots/${editingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(toPayload(form, true)),
-        })
-      } else {
-        await apiFetch<Spot>('/api/spots', {
-          method: 'POST',
-          body: JSON.stringify(toPayload(form)),
-        })
-      }
-      cancel()
-      await reload()
-    } catch (e) {
-      alert(e instanceof ApiError ? e.detail : '保存に失敗しました')
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('このポイントを削除しますか?')) return
-    try {
-      await apiFetch(`/api/spots/${id}`, { method: 'DELETE' })
-      setSpots(spots.filter((s) => s.id !== id))
-    } catch (e) {
-      alert(e instanceof ApiError ? e.detail : '削除に失敗しました')
-    }
-  }
-
-  const loadMore = async () => {
-    setLoadingMore(true)
-    await loadPage(spots.length)
-    setLoadingMore(false)
-  }
+  const {
+    items: spots,
+    loading,
+    loadingMore,
+    hasMore,
+    error,
+    showForm,
+    editingId,
+    form,
+    handleChange,
+    startCreate,
+    startEdit,
+    cancel,
+    handleSubmit,
+    handleDelete,
+    loadMore,
+  } = useResourceList<Spot, FormState>({
+    endpoint: '/api/spots',
+    emptyForm: EMPTY_FORM,
+    fromEntity: (s) => ({
+      name: s.name,
+      river_name: s.river_name ?? '',
+      latitude: s.latitude?.toString() ?? '',
+      longitude: s.longitude?.toString() ?? '',
+      notes: s.notes ?? '',
+    }),
+    nullableFields: NULLABLE_FIELDS,
+    numberFields: NUMBER_FIELDS,
+    deleteConfirm: 'このポイントを削除しますか?',
+  })
 
   if (loading) return <FullScreenSpinner />
 
