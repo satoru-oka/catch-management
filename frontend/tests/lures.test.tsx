@@ -107,6 +107,31 @@ describe('LuresPage', () => {
     })
   })
 
+  it('編集時は nullable な既存値を null にクリアできる', async () => {
+    apiFetch.mockResolvedValueOnce([baseLure])
+    apiFetch.mockResolvedValueOnce({ ...baseLure, color: null, length_mm: null, notes: null })
+    apiFetch.mockResolvedValueOnce([{ ...baseLure, color: null, length_mm: null, notes: null }])
+    render(<LuresPage />)
+    await screen.findByText('Dコンタクト63')
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: '編集' }))
+    await user.clear(screen.getByLabelText('カラー'))
+    await user.clear(screen.getByLabelText('長さ (mm)'))
+    await user.clear(screen.getByLabelText('メモ'))
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      const [url, init] = apiFetch.mock.calls[1]
+      expect(url).toBe('/api/lures/l1')
+      expect(init.method).toBe('PUT')
+      const body = JSON.parse(init.body)
+      expect(body.color).toBeNull()
+      expect(body.length_mm).toBeNull()
+      expect(body.notes).toBeNull()
+    })
+  })
+
   it('削除ボタン: confirm 受諾で DELETE され UI から消える', async () => {
     apiFetch.mockResolvedValueOnce([baseLure])
     apiFetch.mockResolvedValueOnce(undefined)

@@ -342,7 +342,7 @@
 
 | # | 重要度 | 内容 | 影響範囲 | 状況 |
 |---|---|---|---|---|
-| FX-1 | 🟡 | フォーム edit 系で「空文字を送らない」回避策で NULL クリア不可。X-2 の表側 | sessions/[id]/edit, catches/[catchId]/edit, lures, spots | **OPEN** [#38](https://github.com/satoru-oka/catch-management/issues/38): X-2 (backend で `exclude_unset=True`) 解消後に撤去 |
+| FX-1 | 🟡 | フォーム edit 系で「空文字を送らない」回避策で NULL クリア不可。X-2 の表側 | sessions/[id]/edit, catches/[catchId]/edit, lures, spots | **DONE** [#38](https://github.com/satoru-oka/catch-management/issues/38): create は空値 omit、edit は nullable field の空値を `null` として PUT する helper に統一 |
 | FX-2 | 🟢 | `useEffect` の依存配列が `apiFetch` などモジュールスコープ関数を省略している箇所多数 | (protected) 配下のページほぼ全部 | **DONE** [#28](https://github.com/satoru-oka/catch-management/issues/28): Next.js の hooks lint を CI で `npm run lint -- --max-warnings=0` として継続実行 |
 | FX-3 | 🟡 | home / settings で user metadata から profile を組み立てる処理が重複し、settings だけ Unicode unsafe な頭文字取得が残る | home, settings, frontend/lib/profile.ts | **DONE** [#47](https://github.com/satoru-oka/catch-management/issues/47): `extractProfile()` / `profileInitial()` に共通化 |
 | FL-1 | 🟢 | ログイン済みでも `/login` を直接開くとログインフォームが表示される | login | **DONE** [#50](https://github.com/satoru-oka/catch-management/issues/50): 初回 `getSession()` で既存 session があれば `/` へ `replace` |

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
+import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
 import type { SessionDetail, Spot } from '@/lib/types'
 
@@ -27,6 +28,16 @@ const empty: FormState = {
   weather: '',
   notes: '',
 }
+
+const nullableFields = [
+  'spot_id',
+  'start_time',
+  'end_time',
+  'water_level',
+  'water_clarity',
+  'weather',
+  'notes',
+]
 
 export default function EditSessionPage() {
   const router = useRouter()
@@ -70,8 +81,7 @@ export default function EditSessionPage() {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
-    // 空文字フィールドは送らない (バックエンドが None を捨てて未指定扱いにする)
-    const payload = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== ''))
+    const payload = buildFormPayload(form, { nullableFields })
     try {
       await apiFetch(`/api/sessions/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
       router.push(`/sessions/${id}`)

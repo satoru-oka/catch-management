@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
+import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
 import type { Lure } from '@/lib/types'
 
@@ -16,6 +17,8 @@ type FormState = {
 }
 
 const emptyForm: FormState = { name: '', type: '', color: '', length_mm: '', weight_g: '', notes: '' }
+const nullableFields = ['type', 'color', 'length_mm', 'weight_g', 'notes']
+const numberFields = ['length_mm', 'weight_g']
 
 const fromLure = (l: Lure): FormState => ({
   name: l.name,
@@ -26,14 +29,11 @@ const fromLure = (l: Lure): FormState => ({
   notes: l.notes ?? '',
 })
 
-const toPayload = (f: FormState) => {
-  const data: Record<string, unknown> = Object.fromEntries(
-    Object.entries(f).filter(([, v]) => v !== ''),
-  )
-  if (data.length_mm) data.length_mm = parseFloat(data.length_mm as string)
-  if (data.weight_g) data.weight_g = parseFloat(data.weight_g as string)
-  return data
-}
+const toPayload = (f: FormState, nullEmpty = false) =>
+  buildFormPayload(f, {
+    nullableFields: nullEmpty ? nullableFields : [],
+    numberFields,
+  })
 
 export default function LuresPage() {
   const router = useRouter()
@@ -83,7 +83,7 @@ export default function LuresPage() {
       if (editingId) {
         await apiFetch<Lure>(`/api/lures/${editingId}`, {
           method: 'PUT',
-          body: JSON.stringify(toPayload(form)),
+          body: JSON.stringify(toPayload(form, true)),
         })
       } else {
         await apiFetch<Lure>('/api/lures', {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
+import { buildFormPayload } from '@/lib/formPayload'
 import type { Lure, Catch } from '@/lib/types'
 
 type FormState = {
@@ -15,6 +16,8 @@ type FormState = {
   is_released: 'true' | 'false'
   notes: string
 }
+
+const numberFields = ['length_cm', 'weight_g']
 
 export default function NewCatchPage() {
   const router = useRouter()
@@ -64,11 +67,7 @@ export default function NewCatchPage() {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
-    const data: Record<string, unknown> = Object.fromEntries(
-      Object.entries(form).filter(([, v]) => v !== ''),
-    )
-    if (data.length_cm) data.length_cm = parseFloat(data.length_cm as string)
-    if (data.weight_g) data.weight_g = parseFloat(data.weight_g as string)
+    const data: Record<string, unknown> = buildFormPayload(form, { numberFields })
     data.is_released = form.is_released === 'true'
     try {
       await apiFetch<Catch>(`/api/sessions/${sessionId}/catches`, {
