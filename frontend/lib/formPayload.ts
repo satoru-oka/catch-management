@@ -1,16 +1,16 @@
 export type FormPayload = Record<string, string | number | null>
 
-type BuildFormPayloadOptions = {
-  nullableFields?: readonly string[]
-  numberFields?: readonly string[]
+type BuildFormPayloadOptions<F> = {
+  nullableFields?: readonly (keyof F & string)[]
+  numberFields?: readonly (keyof F & string)[]
 }
 
-export function buildFormPayload(
-  values: Record<string, string>,
-  { nullableFields = [], numberFields = [] }: BuildFormPayloadOptions = {},
+export function buildFormPayload<F extends Record<string, string>>(
+  values: F,
+  { nullableFields = [], numberFields = [] }: BuildFormPayloadOptions<F> = {},
 ): FormPayload {
-  const nullable = new Set(nullableFields)
-  const numbers = new Set(numberFields)
+  const nullable = new Set<string>(nullableFields)
+  const numbers = new Set<string>(numberFields)
   const payload: FormPayload = {}
 
   for (const [key, value] of Object.entries(values)) {

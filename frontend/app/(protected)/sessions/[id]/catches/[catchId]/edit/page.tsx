@@ -30,8 +30,8 @@ const empty: FormState = {
   notes: '',
 }
 
-const nullableFields = ['length_cm', 'weight_g', 'lure_id', 'lure_name', 'lure_color', 'notes']
-const numberFields = ['length_cm', 'weight_g']
+const nullableFields = ['length_cm', 'weight_g', 'lure_id', 'lure_name', 'lure_color', 'notes'] as const
+const numberFields = ['length_cm', 'weight_g'] as const
 
 export default function EditCatchPage() {
   const router = useRouter()
