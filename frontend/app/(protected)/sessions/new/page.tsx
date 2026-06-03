@@ -6,33 +6,20 @@ import { apiFetch, ApiError } from '@/lib/api'
 import { tokyoDateIso } from '@/lib/date'
 import { buildFormPayload } from '@/lib/formPayload'
 import { fetchAllPages } from '@/lib/pagination'
+import {
+  EMPTY_SESSION_FORM,
+  type SessionFormState,
+} from '@/lib/sessionFormConfig'
 import type { Spot, Session } from '@/lib/types'
-
-type FormState = {
-  spot_id: string
-  date: string
-  start_time: string
-  end_time: string
-  water_level: string
-  water_clarity: string
-  weather: string
-  notes: string
-}
 
 export default function NewSessionPage() {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [spots, setSpots] = useState<Spot[]>([])
-  const [form, setForm] = useState<FormState>({
-    spot_id: '',
+  const [form, setForm] = useState<SessionFormState>({
+    ...EMPTY_SESSION_FORM,
     date: tokyoDateIso(),
-    start_time: '',
-    end_time: '',
-    water_level: '',
-    water_clarity: '',
-    weather: '',
-    notes: '',
   })
 
   useEffect(() => {
