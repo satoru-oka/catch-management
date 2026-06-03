@@ -225,7 +225,7 @@
 |---|---|---|---|
 | C-6 | 🟢 | `list_catches` の `ilike("lure_name", f"%{lure_name}%")` ([catches.py:62](backend/routers/catches.py#L62)) が `%` / `_` をエスケープしていない。「100%」検索でワイルドカード扱いになる。supabase-py が SQL インジェクションは防ぐので脆弱性ではなく UX | **DONE** [#33](https://github.com/satoru-oka/catch-management/issues/33): `%` / `_` / `\` を escape して literal 検索に寄せる |
 | L-5 | ⚪ | `routers/lures.py` 冒頭が空行 ([lures.py:1](backend/routers/lures.py#L1))。S-3 と同じ Ruff 整理残骸 | **DONE** [#32](https://github.com/satoru-oka/catch-management/issues/32): 先頭空行を削除 |
-| X-4 | 🟡 | RLS 一元依存だが、**クロステナント GET スモークテスト** が無い。RLS が事故で外れると anon key 経由で他人のデータが見える | **OPEN** [#24](https://github.com/satoru-oka/catch-management/issues/24): `tests/integration/test_rls.py` で user A/B fixture を立て、spots / sessions / catches / lures の 4 テーブルに対し「B のトークンで A のレコード ID を select.eq → 空配列」を assert |
+| X-4 | 🟡 | RLS 一元依存だが、**クロステナント GET スモークテスト** が無い。RLS が事故で外れると anon key 経由で他人のデータが見える | **DONE** [#24](https://github.com/satoru-oka/catch-management/issues/24): `tests/integration/test_rls.py` に user A/B の横断 smoke を追加し、spots / sessions / catches / lures の list/get/update/delete と統計 endpoint の混入なしを確認 |
 | X-5 | 🟢 | `create_*` のみ `get_current_user` 依存、`update_*` / `delete_*` は依存無し (RLS 任せ) の **非対称**。読み手が「create だけユーザー必須」と誤読する余地 | **DONE** [#27](https://github.com/satoru-oka/catch-management/issues/27): mutate 系は全て `get_current_user` 依存を持つ形に統一 |
 
 ---
