@@ -330,9 +330,9 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| BN-1 | 🟡 | `isActive = pathname === tab.path` が完全一致判定 ([BottomNav.tsx:21](frontend/components/BottomNav.tsx#L21))。`/sessions/new` や `/sessions/[id]` 配下では「記録」が active にならない | **OPEN** [#36](https://github.com/satoru-oka/catch-management/issues/36): ホーム以外は `pathname.startsWith(tab.path)` に緩める (ホームは完全一致のまま) |
-| BN-2 | 🟢 | `<button onClick={() => router.push(...)}>` で navigation。`<Link>` に置換すると prefetch + 右クリック「新規タブで開く」も使える | **OPEN** [#36](https://github.com/satoru-oka/catch-management/issues/36) |
-| BN-3 | ⚪ | 絵文字アイコンが OS によって描画ブレ (Win/Android/iOS)。lucide-react などに揃えると統一感 | **OPEN (任意)** [#36](https://github.com/satoru-oka/catch-management/issues/36): 個人開発スコープでは現状で十分 |
+| BN-1 | 🟡 | `isActive = pathname === tab.path` が完全一致判定 ([BottomNav.tsx:21](frontend/components/BottomNav.tsx#L21))。`/sessions/new` や `/sessions/[id]` 配下では「記録」が active にならない | **DONE** [#36](https://github.com/satoru-oka/catch-management/issues/36): `activePaths` で `/sessions/*` を「記録」active に統一 |
+| BN-2 | 🟢 | `<button onClick={() => router.push(...)}>` で navigation。`<Link>` に置換すると prefetch + 右クリック「新規タブで開く」も使える | **DONE** [#36](https://github.com/satoru-oka/catch-management/issues/36): BottomNav navigation を `<Link href>` に変更 |
+| BN-3 | ⚪ | 絵文字アイコンが OS によって描画ブレ (Win/Android/iOS)。lucide-react などに揃えると統一感 | **WONTFIX** [#36](https://github.com/satoru-oka/catch-management/issues/36): 既存依存に icon library が無いため、今回は挙動改善を優先し絵文字を維持 |
 
 ---
 
