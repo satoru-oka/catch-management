@@ -156,6 +156,17 @@ def test_monthly_stats_aggregates_by_month(client, fake_db):
     assert body["2026-04"] == {"session_count": 2, "catch_count": 1}
 
 
+def test_monthly_stats_applies_month_range_to_view(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.get("/api/sessions/stats/monthly?from_month=2026-04&to_month=2026-05")
+
+    assert res.status_code == 200
+    ops = fake_db.calls[0]["ops"]
+    assert ("gte", ("month", "2026-04"), {}) in ops
+    assert ("lte", ("month", "2026-05"), {}) in ops
+
+
 def test_monthly_stats_falls_back_when_view_is_missing(client, fake_db):
     fake_db.queue_error(RuntimeError('relation "user_monthly_session_stats" does not exist'))
     fake_db.queue_result(
@@ -175,6 +186,36 @@ def test_monthly_stats_falls_back_when_view_is_missing(client, fake_db):
         "2026-05": {"session_count": 2, "catch_count": 2},
         "2026-04": {"session_count": 1, "catch_count": 1},
     }
+
+
+def test_monthly_stats_applies_month_range_to_fallback(client, fake_db):
+    fake_db.queue_error(RuntimeError('relation "user_monthly_session_stats" does not exist'))
+    fake_db.queue_result([])
+
+    res = client.get("/api/sessions/stats/monthly?from_month=2026-04&to_month=2026-05")
+
+    assert res.status_code == 200
+    ops = fake_db.calls[1]["ops"]
+    assert ("gte", ("date", "2026-04-01"), {}) in ops
+    assert ("lte", ("date", "2026-05-31"), {}) in ops
+
+
+def test_monthly_stats_rejects_invalid_month(client):
+    res = client.get("/api/sessions/stats/monthly?from_month=2026-4")
+
+    assert res.status_code == 422
+
+
+def test_monthly_stats_rejects_invalid_calendar_month(client):
+    res = client.get("/api/sessions/stats/monthly?from_month=2026-13")
+
+    assert res.status_code == 422
+
+
+def test_monthly_stats_rejects_reversed_month_range(client):
+    res = client.get("/api/sessions/stats/monthly?from_month=2026-05&to_month=2026-04")
+
+    assert res.status_code == 422
 
 
 def test_monthly_stats_empty(client, fake_db):

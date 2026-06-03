@@ -125,6 +125,40 @@ def test_list_catches_with_lure_name_filter_uses_ilike(client, fake_db):
     assert ilike_op[1] == ("lure_name", "%スプーン%")
 
 
+def test_list_catches_escapes_lure_name_wildcards(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.get("/api/catches?lure_name=100%_ミノー")
+
+    assert res.status_code == 200
+    ops = fake_db.calls[0]["ops"]
+    ilike_op = next(op for op in ops if op[0] == "ilike")
+    assert ilike_op[1] == ("lure_name", r"%100\%\_ミノー%")
+
+
+def test_list_catches_with_range_filters(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.get(
+        "/api/catches"
+        "?date_from=2026-05-01"
+        "&date_to=2026-05-31"
+        "&length_min=20"
+        "&length_max=40"
+        "&weight_min=100"
+        "&weight_max=500"
+    )
+
+    assert res.status_code == 200
+    ops = fake_db.calls[0]["ops"]
+    assert ("gte", ("caught_at", "2026-05-01T00:00:00"), {}) in ops
+    assert ("lte", ("caught_at", "2026-05-31T23:59:59.999999"), {}) in ops
+    assert ("gte", ("length_cm", 20.0), {}) in ops
+    assert ("lte", ("length_cm", 40.0), {}) in ops
+    assert ("gte", ("weight_g", 100.0), {}) in ops
+    assert ("lte", ("weight_g", 500.0), {}) in ops
+
+
 def test_get_catch_found(client, fake_db):
     fake_db.queue_result([{"id": "c1", "fish_species": "ヤマメ"}])
 
