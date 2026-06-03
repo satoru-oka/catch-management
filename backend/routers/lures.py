@@ -51,7 +51,7 @@ def create_lure(
     db: Client = Depends(get_supabase),
     user_id: str = Depends(get_current_user),
 ):
-    data = {k: v for k, v in lure.model_dump().items() if v is not None}
+    data = lure.model_dump(mode="json", exclude_none=True)
     data["user_id"] = user_id
     result = db.table("lures").insert(data).execute()
     return result.data[0]
@@ -64,7 +64,7 @@ def update_lure(
     db: Client = Depends(get_supabase),
     _user_id: str = Depends(get_current_user),
 ):
-    data = lure.model_dump(exclude_unset=True)
+    data = lure.model_dump(mode="json", exclude_unset=True)
     result = db.table("lures").update(data).eq("id", lure_id).execute()
     return first_or_404(result.data, "ルアーが見つかりません")
 

@@ -65,7 +65,7 @@ def create_catch(
     session = db.table("sessions").select("id").eq("id", session_id).execute()
     assert_found(session.data, "釣行が見つかりません")
     validate_lure_id(catch.lure_id, db)
-    data = {k: v for k, v in catch.model_dump(mode="json").items() if v is not None}
+    data = catch.model_dump(mode="json", exclude_none=True)
     data["session_id"] = session_id
     result = db.table("catches").insert(data).execute()
     return result.data[0]
