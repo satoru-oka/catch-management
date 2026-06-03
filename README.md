@@ -1,5 +1,9 @@
 # catch-management
 
+<p align="center">
+  <img src="./screenshot.png" alt="釣果ログ アプリのトップ画面" width="320" />
+</p>
+
 釣行、釣果、ポイント、ルアーを記録し、あとから統計で振り返るための釣果管理アプリです。
 
 フロントエンドは Next.js、バックエンドは FastAPI、認証とデータ保存は Supabase を使います。バックエンドは Supabase の `anon` key だけを持ち、ブラウザから受け取ったユーザー JWT を PostgREST に中継することで Row Level Security に認可を任せる構成です。
@@ -201,11 +205,10 @@ GitHub Actions は backend、frontend、integration の 3 job を実行します
 
 現在の主な候補:
 
-- 一覧 API と UI のページング
-- 検索 / 並び替え条件の拡張
-- RLS 境界の integration test 補強
-- nullable field を UI から明示的にクリアできる編集体験
-- 写真アップロードやパスワードリセットなどの未実装機能
+- 写真アップロード (釣果に画像を添付)
+- パスワードリセット / メールアドレス変更
+- ホーム以外からの統計画面導線改善
+- オフライン入力 (PWA / IndexedDB)
 
 ## 開発メモ
 
