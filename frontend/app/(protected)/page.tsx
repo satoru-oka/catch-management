@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { apiFetch, ApiError } from '@/lib/api'
+import { tokyoDateIso } from '@/lib/date'
+import { fetchAllPages } from '@/lib/pagination'
+import { extractProfile, profileInitial, type Profile } from '@/lib/profile'
 import { FullScreenSpinner } from '@/lib/Loading'
 import type { Catch, SessionWithSpot } from '@/lib/types'
 
@@ -11,24 +14,7 @@ type CatchWithSession = Catch & {
   sessions: { date: string; spot_id: string | null } | null
 }
 
-type Profile = {
-  name: string
-  avatarUrl: string | null
-}
-
 const WEEKDAY = ['日', '月', '火', '水', '木', '金', '土']
-const TOKYO_TIME_ZONE = 'Asia/Tokyo'
-
-function tokyoDateIso(date: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: TOKYO_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date)
-  const value = (type: string) => parts.find((part) => part.type === type)?.value
-  return `${value('year')}-${value('month')}-${value('day')}`
-}
 
 function formatJpDate(iso: string): string {
   const [year, month, day] = iso.split('-').map(Number)
@@ -54,22 +40,18 @@ export default function HomePage() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch<CatchWithSession[]>('/api/catches'),
-      apiFetch<SessionWithSpot[]>('/api/sessions'),
+      fetchAllPages<CatchWithSession>('/api/catches', (path) =>
+        apiFetch<CatchWithSession[]>(path),
+      ),
+      fetchAllPages<SessionWithSpot>('/api/sessions', (path) =>
+        apiFetch<SessionWithSpot[]>(path),
+      ),
       createClient().auth.getUser(),
     ])
       .then(([c, s, { data }]) => {
         setCatches(c)
         setSessions(s)
-        const u = data.user
-        const meta = (u?.user_metadata ?? {}) as Record<string, unknown>
-        const name =
-          (typeof meta.display_name === 'string' && meta.display_name) ||
-          (typeof meta.full_name === 'string' && meta.full_name) ||
-          u?.email?.split('@')[0] ||
-          'ゲスト'
-        const avatarUrl = typeof meta.avatar_url === 'string' ? meta.avatar_url : null
-        setProfile({ name, avatarUrl })
+        setProfile(extractProfile(data.user))
       })
       .catch((e: ApiError) => setError(e.detail))
       .finally(() => setLoading(false))
@@ -78,7 +60,7 @@ export default function HomePage() {
   const today = useMemo(() => tokyoDateIso(), [])
   const monthStart = useMemo(() => `${today.slice(0, 7)}-01`, [today])
   const greetingName = profile?.name ?? 'ゲスト'
-  const greetingInitial = useMemo(() => [...greetingName][0] ?? 'ゲ', [greetingName])
+  const greetingInitial = useMemo(() => profileInitial(greetingName), [greetingName])
   const {
     todayCount,
     todayWeightKg,

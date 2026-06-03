@@ -44,7 +44,7 @@ describe('NewCatchPage', () => {
     apiFetch.mockResolvedValueOnce(lures)
     render(<NewCatchPage />)
 
-    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/api/lures'))
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/api/lures?limit=200&offset=0'))
     expect(
       await screen.findByRole('option', { name: 'Dコンタクト63 / チャート' }),
     ).toBeInTheDocument()

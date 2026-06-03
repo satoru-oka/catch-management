@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
@@ -24,8 +24,18 @@ class SpotUpdate(BaseModel):
 
 
 @router.get("/")
-def list_spots(db: Client = Depends(get_supabase)):
-    result = db.table("spots").select("*").execute()
+def list_spots(
+    db: Client = Depends(get_supabase),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    result = (
+        db.table("spots")
+        .select("*")
+        .order("name")
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
     return result.data
 
 
@@ -76,12 +86,18 @@ def delete_spot(
 
 
 @router.get("/{spot_id}/sessions")
-def list_spot_sessions(spot_id: str, db: Client = Depends(get_supabase)):
+def list_spot_sessions(
+    spot_id: str,
+    db: Client = Depends(get_supabase),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     result = (
         db.table("sessions")
         .select("*")
         .eq("spot_id", spot_id)
         .order("date", desc=True)
+        .range(offset, offset + limit - 1)
         .execute()
     )
     return result.data

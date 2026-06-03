@@ -1,10 +1,11 @@
-"""auth モジュールおよびルート (`/`) のテスト。"""
+"""auth モジュールおよび liveness ルートのテスト。"""
 
 from __future__ import annotations
 
 import datetime as dt
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
@@ -62,9 +63,47 @@ def test_get_current_user_no_user_raises_401(monkeypatch):
     assert exc.value.detail == "Invalid token"
 
 
-def test_get_current_user_supabase_error_raises_401(monkeypatch):
+def test_get_current_user_auth_service_http_error_raises_503(monkeypatch):
     def boom(_token):
-        raise RuntimeError("network down")
+        raise httpx.ConnectError("network down")
+
+    monkeypatch.setattr(
+        auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))
+    )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", None)
+
+    with pytest.raises(HTTPException) as exc:
+        auth.get_current_user(_creds())
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "Auth service unavailable"
+
+
+def test_get_current_user_auth_retryable_error_raises_503(monkeypatch):
+    class AuthRetryableError(Exception):
+        pass
+
+    def boom(_token):
+        raise AuthRetryableError("auth retryable")
+
+    monkeypatch.setattr(
+        auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))
+    )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", None)
+
+    with pytest.raises(HTTPException) as exc:
+        auth.get_current_user(_creds())
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "Auth service unavailable"
+
+
+def test_get_current_user_auth_api_error_raises_401(monkeypatch):
+    class AuthApiError(Exception):
+        pass
+
+    def boom(_token):
+        raise AuthApiError("invalid jwt")
 
     monkeypatch.setattr(
         auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))
@@ -76,6 +115,22 @@ def test_get_current_user_supabase_error_raises_401(monkeypatch):
 
     assert exc.value.status_code == 401
     assert exc.value.detail == "Invalid token"
+
+
+def test_get_current_user_unexpected_error_raises_500(monkeypatch):
+    def boom(_token):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(
+        auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))
+    )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", None)
+
+    with pytest.raises(HTTPException) as exc:
+        auth.get_current_user(_creds())
+
+    assert exc.value.status_code == 500
+    assert exc.value.detail == "Internal error"
 
 
 def test_get_current_user_verifies_jwt_locally(monkeypatch):
@@ -134,6 +189,14 @@ def test_get_current_user_expired_token_raises_401(monkeypatch):
     assert exc.value.detail == "Invalid token"
 
 
+def test_get_current_user_without_credentials_raises_401():
+    with pytest.raises(HTTPException) as exc:
+        auth.get_current_user(None)
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Not authenticated"
+
+
 def test_get_supabase_attaches_user_token(monkeypatch):
     captured = {}
 
@@ -160,6 +223,14 @@ def test_get_supabase_attaches_user_token(monkeypatch):
     assert isinstance(client, FakeClient)
 
 
+def test_get_supabase_without_credentials_raises_401():
+    with pytest.raises(HTTPException) as exc:
+        auth.get_supabase(None)
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Not authenticated"
+
+
 def test_root_endpoint_returns_status_message():
     """`/` は認証不要なので素の TestClient で叩く。"""
     with TestClient(app) as c:
@@ -168,12 +239,20 @@ def test_root_endpoint_returns_status_message():
     assert res.json() == {"message": "釣果管理アプリ API 起動中"}
 
 
+def test_healthz_endpoint_returns_ok():
+    """`/healthz` は liveness check として認証不要で叩ける。"""
+    with TestClient(app) as c:
+        res = c.get("/healthz")
+    assert res.status_code == 200
+    assert res.json() == {"status": "ok"}
+
+
 def test_protected_endpoint_without_token_is_rejected():
-    """Authorization ヘッダ無しは HTTPBearer によりリクエストが拒否される。"""
+    """Authorization ヘッダ無しは 401 に統一する。"""
     with TestClient(app) as c:
         res = c.get("/api/spots/")
-    # FastAPI のバージョンによって 401/403 のどちらかが返る
-    assert res.status_code in (401, 403)
+    assert res.status_code == 401
+    assert res.json() == {"detail": "Not authenticated"}
 
 
 def test_postgrest_jwt_error_is_mapped_to_401(monkeypatch):
@@ -184,6 +263,12 @@ def test_postgrest_jwt_error_is_mapped_to_401(monkeypatch):
 
     class _RaisingTable:
         def select(self, *_a, **_k):
+            return self
+
+        def order(self, *_a, **_k):
+            return self
+
+        def range(self, *_a, **_k):
             return self
 
         def execute(self):
@@ -218,6 +303,12 @@ def test_postgrest_other_error_is_mapped_to_500():
 
     class _RaisingTable:
         def select(self, *_a, **_k):
+            return self
+
+        def order(self, *_a, **_k):
+            return self
+
+        def range(self, *_a, **_k):
             return self
 
         def execute(self):

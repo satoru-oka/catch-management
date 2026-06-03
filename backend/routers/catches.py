@@ -1,6 +1,6 @@
-from datetime import datetime
+import datetime as dt
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
@@ -16,7 +16,7 @@ class CatchCreate(BaseModel):
     lure_id: str | None = None
     lure_name: str | None = None
     lure_color: str | None = None
-    caught_at: datetime | None = None
+    caught_at: dt.datetime | None = None
     is_released: bool | None = True
     notes: str | None = None
 
@@ -28,7 +28,7 @@ class CatchUpdate(BaseModel):
     lure_id: str | None = None
     lure_name: str | None = None
     lure_color: str | None = None
-    caught_at: datetime | None = None
+    caught_at: dt.datetime | None = None
     is_released: bool | None = None
     notes: str | None = None
 
@@ -39,6 +39,18 @@ def validate_lure_id(lure_id: str | None, db: Client) -> None:
     result = db.table("lures").select("id").eq("id", lure_id).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="無効な lure_id です")
+
+
+def _escape_ilike(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+
+
+def _date_start_iso(value: dt.date) -> str:
+    return dt.datetime.combine(value, dt.time.min).isoformat()
+
+
+def _date_end_iso(value: dt.date) -> str:
+    return dt.datetime.combine(value, dt.time.max).isoformat()
 
 
 @router.post("/sessions/{session_id}/catches")
@@ -64,13 +76,33 @@ def list_catches(
     db: Client = Depends(get_supabase),
     fish_species: str | None = None,
     lure_name: str | None = None,
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+    length_min: float | None = None,
+    length_max: float | None = None,
+    weight_min: float | None = None,
+    weight_max: float | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
 ):
     query = db.table("catches").select("*, sessions(date, spot_id)")
     if fish_species:
         query = query.eq("fish_species", fish_species)
     if lure_name:
-        query = query.ilike("lure_name", f"%{lure_name}%")
-    result = query.order("created_at", desc=True).execute()
+        query = query.ilike("lure_name", f"%{_escape_ilike(lure_name)}%")
+    if date_from:
+        query = query.gte("caught_at", _date_start_iso(date_from))
+    if date_to:
+        query = query.lte("caught_at", _date_end_iso(date_to))
+    if length_min is not None:
+        query = query.gte("length_cm", length_min)
+    if length_max is not None:
+        query = query.lte("length_cm", length_max)
+    if weight_min is not None:
+        query = query.gte("weight_g", weight_min)
+    if weight_max is not None:
+        query = query.lte("weight_g", weight_max)
+    result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
     return result.data
 
 

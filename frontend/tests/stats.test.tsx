@@ -50,7 +50,7 @@ describe('StatsPage', () => {
     const urls = apiFetch.mock.calls.map((c) => c[0])
     expect(urls).toContain('/api/sessions/stats/monthly')
     expect(urls).toContain('/api/lures/stats')
-    expect(urls).toContain('/api/catches')
+    expect(urls).toContain('/api/catches?limit=200&offset=0')
   })
 
   it('月別データを月昇順に並べてチャートに渡す', async () => {

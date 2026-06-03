@@ -13,6 +13,25 @@ def test_list_spots_returns_data(client, fake_db):
     assert res.status_code == 200
     assert res.json() == [{"id": "s1", "name": "本流ポイント"}]
     assert fake_db.calls[0]["table"] == "spots"
+    ops = fake_db.calls[0]["ops"]
+    assert any(op[0] == "order" and op[1] == ("name",) for op in ops)
+    assert ("range", (0, 49), {}) in ops
+
+
+def test_list_spots_applies_limit_offset(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.get("/api/spots/?limit=25&offset=50")
+
+    assert res.status_code == 200
+    ops = fake_db.calls[0]["ops"]
+    assert ("range", (50, 74), {}) in ops
+
+
+def test_list_spots_rejects_limit_over_max(client):
+    res = client.get("/api/spots/?limit=201")
+
+    assert res.status_code == 422
 
 
 def test_list_spots_empty(client, fake_db):
@@ -137,3 +156,20 @@ def test_list_spot_sessions(client, fake_db):
     ops = fake_db.calls[0]["ops"]
     assert ("eq", ("spot_id", "s1"), {}) in ops
     assert any(op[0] == "order" and op[1] == ("date",) for op in ops)
+    assert ("range", (0, 49), {}) in ops
+
+
+def test_list_spot_sessions_applies_limit_offset(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.get("/api/spots/s1/sessions?limit=10&offset=20")
+
+    assert res.status_code == 200
+    ops = fake_db.calls[0]["ops"]
+    assert ("range", (20, 29), {}) in ops
+
+
+def test_list_spot_sessions_rejects_negative_offset(client):
+    res = client.get("/api/spots/s1/sessions?offset=-1")
+
+    assert res.status_code == 422

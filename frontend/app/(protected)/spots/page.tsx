@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
+import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
+import { LIST_PAGE_SIZE, withPagination } from '@/lib/pagination'
 import type { Spot } from '@/lib/types'
 
 type FormState = {
@@ -15,6 +17,8 @@ type FormState = {
 }
 
 const emptyForm: FormState = { name: '', river_name: '', latitude: '', longitude: '', notes: '' }
+const nullableFields = ['river_name', 'latitude', 'longitude', 'notes']
+const numberFields = ['latitude', 'longitude']
 
 const fromSpot = (s: Spot): FormState => ({
   name: s.name,
@@ -24,32 +28,38 @@ const fromSpot = (s: Spot): FormState => ({
   notes: s.notes ?? '',
 })
 
-const toPayload = (f: FormState) => {
-  const data: Record<string, unknown> = Object.fromEntries(
-    Object.entries(f).filter(([, v]) => v !== ''),
-  )
-  if (data.latitude) data.latitude = parseFloat(data.latitude as string)
-  if (data.longitude) data.longitude = parseFloat(data.longitude as string)
-  return data
-}
+const toPayload = (f: FormState, nullEmpty = false) =>
+  buildFormPayload(f, {
+    nullableFields: nullEmpty ? nullableFields : [],
+    numberFields,
+  })
 
 export default function SpotsPage() {
   const router = useRouter()
   const [spots, setSpots] = useState<Spot[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
 
-  const reload = () =>
-    apiFetch<Spot[]>('/api/spots')
-      .then(setSpots)
-      .catch((e: ApiError) => setError(e.detail))
+  const loadPage = useCallback((offset = 0) =>
+    apiFetch<Spot[]>(
+      withPagination('/api/spots', { limit: LIST_PAGE_SIZE, offset }),
+    )
+      .then((page) => {
+        setSpots((current) => (offset === 0 ? page : [...current, ...page]))
+        setHasMore(page.length === LIST_PAGE_SIZE)
+      })
+      .catch((e: ApiError) => setError(e.detail)), [])
+
+  const reload = useCallback(() => loadPage(0), [loadPage])
 
   useEffect(() => {
     reload().finally(() => setLoading(false))
-  }, [])
+  }, [reload])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value })
@@ -79,7 +89,7 @@ export default function SpotsPage() {
       if (editingId) {
         await apiFetch<Spot>(`/api/spots/${editingId}`, {
           method: 'PUT',
-          body: JSON.stringify(toPayload(form)),
+          body: JSON.stringify(toPayload(form, true)),
         })
       } else {
         await apiFetch<Spot>('/api/spots', {
@@ -102,6 +112,12 @@ export default function SpotsPage() {
     } catch (e) {
       alert(e instanceof ApiError ? e.detail : '削除に失敗しました')
     }
+  }
+
+  const loadMore = async () => {
+    setLoadingMore(true)
+    await loadPage(spots.length)
+    setLoadingMore(false)
   }
 
   if (loading) return <FullScreenSpinner />
@@ -198,6 +214,16 @@ export default function SpotsPage() {
                 </div>
               </div>
             ))}
+            {hasMore && (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="w-full bg-white border border-gray-200 text-gray-700 text-sm px-4 py-2 rounded-lg disabled:opacity-50"
+              >
+                {loadingMore ? '読み込み中...' : 'もっと読み込む'}
+              </button>
+            )}
           </div>
         )}
       </main>

@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
+import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
+import { fetchAllPages } from '@/lib/pagination'
 import type { Catch, Lure } from '@/lib/types'
 
 type FormState = {
@@ -28,6 +30,9 @@ const empty: FormState = {
   notes: '',
 }
 
+const nullableFields = ['length_cm', 'weight_g', 'lure_id', 'lure_name', 'lure_color', 'notes']
+const numberFields = ['length_cm', 'weight_g']
+
 export default function EditCatchPage() {
   const router = useRouter()
   const params = useParams<{ id: string; catchId: string }>()
@@ -42,7 +47,9 @@ export default function EditCatchPage() {
   useEffect(() => {
     Promise.all([
       apiFetch<Catch>(`/api/catches/${catchId}`),
-      apiFetch<Lure[]>('/api/lures').catch(() => [] as Lure[]),
+      fetchAllPages<Lure>('/api/lures', (path) => apiFetch<Lure[]>(path)).catch(
+        () => [] as Lure[],
+      ),
     ])
       .then(([c, ls]) => {
         setLures(ls)
@@ -87,11 +94,10 @@ export default function EditCatchPage() {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
-    const data: Record<string, unknown> = Object.fromEntries(
-      Object.entries(form).filter(([, v]) => v !== ''),
-    )
-    if (data.length_cm) data.length_cm = parseFloat(data.length_cm as string)
-    if (data.weight_g) data.weight_g = parseFloat(data.weight_g as string)
+    const data: Record<string, unknown> = buildFormPayload(form, {
+      nullableFields,
+      numberFields,
+    })
     data.is_released = form.is_released === 'true'
     try {
       await apiFetch(`/api/catches/${catchId}`, { method: 'PUT', body: JSON.stringify(data) })

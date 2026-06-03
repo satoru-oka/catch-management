@@ -49,6 +49,26 @@ describe('SpotsPage', () => {
     expect(screen.getByText('球磨川')).toBeInTheDocument()
   })
 
+  it('50 件取得した場合はもっと読み込むボタンで次ページを追加する', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, i) => ({
+      ...baseSpot,
+      id: `sp${i}`,
+      name: `ポイント${i}`,
+    }))
+    apiFetch.mockResolvedValueOnce(firstPage)
+    apiFetch.mockResolvedValueOnce([{ ...baseSpot, id: 'sp51', name: '追加ポイント' }])
+    render(<SpotsPage />)
+    await screen.findByText('ポイント0')
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'もっと読み込む' }))
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenLastCalledWith('/api/spots?limit=50&offset=50')
+    })
+    expect(await screen.findByText('追加ポイント')).toBeInTheDocument()
+  })
+
   it('空配列なら "ポイントがまだありません" が出る', async () => {
     apiFetch.mockResolvedValueOnce([])
     render(<SpotsPage />)
@@ -99,6 +119,31 @@ describe('SpotsPage', () => {
       const [url, init] = apiFetch.mock.calls[1]
       expect(url).toBe('/api/spots/sp1')
       expect(init.method).toBe('PUT')
+    })
+  })
+
+  it('編集時は nullable な既存値を null にクリアできる', async () => {
+    apiFetch.mockResolvedValueOnce([baseSpot])
+    apiFetch.mockResolvedValueOnce({ ...baseSpot, river_name: null, latitude: null, notes: null })
+    apiFetch.mockResolvedValueOnce([{ ...baseSpot, river_name: null, latitude: null, notes: null }])
+    render(<SpotsPage />)
+    await screen.findByText('本流ポイント')
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: '編集' }))
+    await user.clear(screen.getByLabelText('川の名前'))
+    await user.clear(screen.getByLabelText('緯度'))
+    await user.clear(screen.getByLabelText('メモ'))
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      const [url, init] = apiFetch.mock.calls[1]
+      expect(url).toBe('/api/spots/sp1')
+      expect(init.method).toBe('PUT')
+      const body = JSON.parse(init.body)
+      expect(body.river_name).toBeNull()
+      expect(body.latitude).toBeNull()
+      expect(body.notes).toBeNull()
     })
   })
 

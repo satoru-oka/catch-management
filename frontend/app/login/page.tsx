@@ -1,22 +1,46 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { FullScreenSpinner } from '@/lib/Loading'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
   const router = useRouter()
-  const supabase = createClient()
+
+  useEffect(() => {
+    let active = true
+
+    createClient()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (!active) return
+        if (data.session) {
+          router.replace('/')
+          return
+        }
+        setCheckingSession(false)
+      })
+      .catch(() => {
+        if (active) setCheckingSession(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
@@ -27,6 +51,8 @@ export default function LoginPage() {
 
     router.push('/')
   }
+
+  if (checkingSession) return <FullScreenSpinner />
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center px-4 py-10">

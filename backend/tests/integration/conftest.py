@@ -206,3 +206,15 @@ def second_user(admin_supabase):
         admin_supabase.auth.admin.delete_user(user["user_id"])
     except Exception as e:
         print(f"[integration cleanup] failed to delete user {user['user_id']}: {e}")
+
+
+@pytest.fixture
+def second_auth_client(second_user):
+    """second_user の JWT を Authorization に積んだ TestClient。"""
+    from fastapi.testclient import TestClient
+
+    from main import app
+
+    headers = {"Authorization": f"Bearer {second_user['access_token']}"}
+    with TestClient(app, headers=headers) as c:
+        yield c

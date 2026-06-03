@@ -62,7 +62,7 @@ describe('EditSessionPage', () => {
     expect((screen.getByLabelText('メモ') as HTMLTextAreaElement).value).toBe('良い流れ')
   })
 
-  it('変更を保存で空文字を除いて PUT し、詳細ページへ遷移する', async () => {
+  it('変更を保存で空文字を null にして PUT し、詳細ページへ遷移する', async () => {
     apiFetch.mockResolvedValueOnce(sessionDetail)
     apiFetch.mockResolvedValueOnce([])
     apiFetch.mockResolvedValueOnce(undefined) // PUT
@@ -80,9 +80,31 @@ describe('EditSessionPage', () => {
     expect(init.method).toBe('PUT')
     const body = JSON.parse(init.body)
     expect(body.notes).toBe('更新メモ')
-    // null → 空文字 → 除外なので end_time/water_clarity は送られない
-    expect(body).not.toHaveProperty('end_time')
-    expect(body).not.toHaveProperty('water_clarity')
+    expect(body.end_time).toBeNull()
+    expect(body.water_clarity).toBeNull()
+  })
+
+  it('nullable な既存値を UI からクリアできる', async () => {
+    apiFetch.mockResolvedValueOnce(sessionDetail)
+    apiFetch.mockResolvedValueOnce([])
+    apiFetch.mockResolvedValueOnce(undefined)
+    render(<EditSessionPage />)
+    await screen.findByLabelText('日付 *')
+    const user = userEvent.setup()
+
+    await user.clear(screen.getByLabelText('開始時間'))
+    await user.selectOptions(screen.getByLabelText('天気'), '')
+    await user.selectOptions(screen.getByLabelText('水量'), '')
+    await user.clear(screen.getByLabelText('メモ'))
+    await user.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/sessions/ses1'))
+    const [, init] = apiFetch.mock.calls[2]
+    const body = JSON.parse(init.body)
+    expect(body.start_time).toBeNull()
+    expect(body.weather).toBeNull()
+    expect(body.water_level).toBeNull()
+    expect(body.notes).toBeNull()
   })
 
   it('読み込み失敗時はエラーメッセージを表示する', async () => {
