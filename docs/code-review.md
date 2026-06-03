@@ -346,6 +346,7 @@
 | FX-2 | 🟢 | `useEffect` の依存配列が `apiFetch` などモジュールスコープ関数を省略している箇所多数 | (protected) 配下のページほぼ全部 | **DONE** [#28](https://github.com/satoru-oka/catch-management/issues/28): Next.js の hooks lint を CI で `npm run lint -- --max-warnings=0` として継続実行 |
 | FX-3 | 🟡 | home / settings で user metadata から profile を組み立てる処理が重複し、settings だけ Unicode unsafe な頭文字取得が残る | home, settings, frontend/lib/profile.ts | **DONE** [#47](https://github.com/satoru-oka/catch-management/issues/47): `extractProfile()` / `profileInitial()` に共通化 |
 | FL-1 | 🟢 | ログイン済みでも `/login` を直接開くとログインフォームが表示される | login | **DONE** [#50](https://github.com/satoru-oka/catch-management/issues/50): 初回 `getSession()` で既存 session があれば `/` へ `replace` |
+| SN-1 | 🔴 | `/sessions/new` の初期日付が `toISOString()` 由来で JST 0:00〜9:00 に前日になる | sessions/new, frontend/lib/date.ts | **DONE** [#46](https://github.com/satoru-oka/catch-management/issues/46): `tokyoDateIso()` を共有 helper 化し、home と sessions/new で利用 |
 
 ---
 
@@ -355,10 +356,12 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| RP-1 | 🟡 | リポジトリルートに未追跡 `c9bc9e20-1e36-4ed5-8d86-a2fec9e07361.png` (約 1.8MB)。レビュー添付の残骸と推定 | **OPEN** [#37](https://github.com/satoru-oka/catch-management/issues/37): 削除 or `docs/` 配下に整理 |
-| RP-2 | 🟢 | `docs/architecture.bakup.20260506.md` の typo (`bakup` → `backup`)。古い差分の保管が不要なら削除 | **OPEN** [#37](https://github.com/satoru-oka/catch-management/issues/37) |
-| RP-3 | 🟢 | `README.md` のクローン手順がプレースホルダ URL (`your-username/...`) | **OPEN** [#12](https://github.com/satoru-oka/catch-management/issues/12): 実 URL に置換 |
-| RP-4 | 🟢 | `backend/CLAUDE.md` 不在。frontend 側には [CLAUDE.md](frontend/CLAUDE.md) (Next.js の注意書き) がある。ISSUE-001 の Python 3.14 PEP 649 シャドー問題を再発防止の 1 行として残すと良い | **OPEN** [#37](https://github.com/satoru-oka/catch-management/issues/37) |
+| RP-1 | 🟡 | リポジトリルートに未追跡 `c9bc9e20-1e36-4ed5-8d86-a2fec9e07361.png` (約 1.8MB)。レビュー添付の残骸と推定 | **DONE** [#37](https://github.com/satoru-oka/catch-management/issues/37): 現在の working tree に対象ファイルが存在しないことを確認 |
+| RP-2 | 🟢 | `docs/architecture.bakup.20260506.md` の typo (`bakup` → `backup`)。古い差分の保管が不要なら削除 | **DONE** [#37](https://github.com/satoru-oka/catch-management/issues/37): `bakup` / `backup` 版とも現存しないことを確認 |
+| RP-3 | 🟢 | `README.md` のクローン手順がプレースホルダ URL (`your-username/...`) | **DONE** [#12](https://github.com/satoru-oka/catch-management/issues/12): 実リポジトリ URL に置換済み |
+| RP-4 | 🟢 | `backend/CLAUDE.md` 不在。frontend 側には [CLAUDE.md](frontend/CLAUDE.md) (Next.js の注意書き) がある。ISSUE-001 の Python 3.14 PEP 649 シャドー問題を再発防止の 1 行として残すと良い | **DONE** [#37](https://github.com/satoru-oka/catch-management/issues/37): backend runtime / Pydantic / RLS 方針の note を追加 |
+| RP-5 | 🟢 | `docs/architecture.md` / `docs/code-review.md` のスナップショットが現状から遅れている | **DONE** [#52](https://github.com/satoru-oka/catch-management/issues/52): architecture の日付・branch・規模スナップショットを更新 |
+| R-1 | 🟡 | README がセットアップ中心で、概要 / 機能 / 技術スタック / docs 導線 / 今後の改善予定が弱い | **DONE** [#12](https://github.com/satoru-oka/catch-management/issues/12): onboarding 入口として構成済み、環境変数表と GitHub issues 導線を追加 |
 
 ---
 

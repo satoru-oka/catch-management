@@ -1,7 +1,7 @@
 # Architecture Snapshot
 
-> **Last updated**: 2026-05-20
-> **Branch**: `codex/refactor-issue-sweep`
+> **Last updated**: 2026-06-03
+> **Branch**: `main`
 > **Purpose**: 将来の改修と比較するための、現時点のシステム全体スナップショット。
 >
 > このドキュメントは「凍結された一時点の写真」です。コード/構成を大きく変更したら
@@ -117,7 +117,7 @@ flowchart TB
     subgraph Frontend["Frontend (Next.js)"]
         direction TB
         Pages["UI Pages<br/>app/login, app/(protected)/*"]
-        Lib["lib/<br/>api.ts (apiFetch + ApiError)<br/>supabase.ts (Auth Client)<br/>types.ts (型定義)<br/>Loading.tsx"]
+        Lib["lib/<br/>api.ts (apiFetch + ApiError)<br/>supabase.ts (Auth Client)<br/>date/profile helpers<br/>types.ts (型定義)<br/>Loading.tsx"]
         Pages --> Lib
     end
 
@@ -126,9 +126,11 @@ flowchart TB
         Main["main.py<br/>CORS + Router 登録"]
         Routers["routers/<br/>spots, sessions, catches, lures"]
         AuthMod["auth.py<br/>get_current_user<br/>get_supabase"]
+        StatsMod["stats.py<br/>stats view fallback helpers"]
         DBMod["supabase_client.py<br/>SUPABASE_URL/ANON_KEY"]
         Main --> Routers
         Routers --> AuthMod
+        Routers --> StatsMod
         Routers --> DBMod
         AuthMod --> DBMod
     end
@@ -288,7 +290,7 @@ erDiagram
 
 ---
 
-## 7. 規模スナップショット (2026-05-06)
+## 7. 規模スナップショット (2026-06-03)
 
 将来の比較に使えるよう、現時点の数値を凍結して記録します。
 
@@ -296,17 +298,19 @@ erDiagram
 
 | 項目 | 値 |
 |---|---|
-| Backend Python LoC | 434 行 |
-| Frontend TS/TSX LoC | 1,851 行 |
-| Backend `.py` ファイル | 7 |
-| Frontend page.tsx | 10 |
-| Frontend `.ts/.tsx` 総数 | 17 |
-| API エンドポイント総数 | 22 |
+| Backend runtime Python LoC | 618 行 |
+| Frontend runtime TS/TSX LoC | 2,291 行 |
+| Backend runtime `.py` ファイル | 8 |
+| Frontend page.tsx | 11 |
+| Frontend runtime `.ts/.tsx` 総数 | 23 |
+| FastAPI app エンドポイント総数 | 24 (`/api/*` は 22) |
 | DB テーブル数 | 4 |
 
-### API エンドポイント (22 個)
+### FastAPI app エンドポイント (24 個)
 
 ```
+GET    /                                    GET    /healthz
+
 GET    /api/spots/                          POST   /api/spots/
 GET    /api/spots/{spot_id}                 PUT    /api/spots/{spot_id}
 DELETE /api/spots/{spot_id}                 GET    /api/spots/{spot_id}/sessions
@@ -401,6 +405,8 @@ catch-management/
 │   ├── main.py
 │   ├── supabase_client.py
 │   ├── auth.py
+│   ├── stats.py
+│   ├── CLAUDE.md
 │   ├── pyproject.toml            (Ruff 設定)
 │   ├── requirements.txt
 │   ├── .env.example
@@ -439,6 +445,8 @@ catch-management/
     └── lib/
         ├── supabase.ts
         ├── api.ts
+        ├── date.ts
+        ├── profile.ts
         ├── types.ts
         └── Loading.tsx
 ```
@@ -452,3 +460,4 @@ catch-management/
 | 日付 | リビジョン | 主な変更 |
 |---|---|---|
 | 2026-05-06 | r1 | 初版。`service_role` 排除 + 認証ガード + 編集 UI 追加後の状態を記録 |
+| 2026-06-03 | r2 | §7 を再計測。旧スナップショットは Backend 434 LoC / Frontend 1,851 LoC / backend 7 files / page.tsx 10 / frontend 17 files / API endpoint 22 |
