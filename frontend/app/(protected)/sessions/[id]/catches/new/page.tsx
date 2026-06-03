@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { CatchForm } from '@/components/CatchForm'
 import { apiFetch, ApiError } from '@/lib/api'
@@ -10,8 +10,8 @@ import {
   type CatchFormState,
 } from '@/lib/catchFormConfig'
 import { buildFormPayload } from '@/lib/formPayload'
-import { fetchAllPages } from '@/lib/pagination'
 import type { Lure, Catch } from '@/lib/types'
+import { useFetchAllPages } from '@/lib/useFetchAllPages'
 
 export default function NewCatchPage() {
   const router = useRouter()
@@ -19,14 +19,8 @@ export default function NewCatchPage() {
   const sessionId = params.id
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [lures, setLures] = useState<Lure[]>([])
+  const { data: lures } = useFetchAllPages<Lure>('/api/lures')
   const [form, setForm] = useState<CatchFormState>(EMPTY_CATCH_FORM)
-
-  useEffect(() => {
-    fetchAllPages<Lure>('/api/lures', (path) => apiFetch<Lure[]>(path))
-      .then(setLures)
-      .catch(() => setLures([]))
-  }, [])
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,

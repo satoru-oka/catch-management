@@ -1,33 +1,27 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SessionForm } from '@/components/SessionForm'
 import { apiFetch, ApiError } from '@/lib/api'
 import { tokyoDateIso } from '@/lib/date'
 import { buildFormPayload } from '@/lib/formPayload'
-import { fetchAllPages } from '@/lib/pagination'
 import {
   EMPTY_SESSION_FORM,
   type SessionFormState,
 } from '@/lib/sessionFormConfig'
 import type { Spot, Session } from '@/lib/types'
+import { useFetchAllPages } from '@/lib/useFetchAllPages'
 
 export default function NewSessionPage() {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [spots, setSpots] = useState<Spot[]>([])
+  const { data: spots } = useFetchAllPages<Spot>('/api/spots')
   const [form, setForm] = useState<SessionFormState>({
     ...EMPTY_SESSION_FORM,
     date: tokyoDateIso(),
   })
-
-  useEffect(() => {
-    fetchAllPages<Spot>('/api/spots', (path) => apiFetch<Spot[]>(path))
-      .then(setSpots)
-      .catch(() => setSpots([]))
-  }, [])
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
