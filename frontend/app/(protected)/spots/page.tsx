@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
+import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
 import type { Spot } from '@/lib/types'
 
@@ -15,6 +16,8 @@ type FormState = {
 }
 
 const emptyForm: FormState = { name: '', river_name: '', latitude: '', longitude: '', notes: '' }
+const nullableFields = ['river_name', 'latitude', 'longitude', 'notes']
+const numberFields = ['latitude', 'longitude']
 
 const fromSpot = (s: Spot): FormState => ({
   name: s.name,
@@ -24,14 +27,11 @@ const fromSpot = (s: Spot): FormState => ({
   notes: s.notes ?? '',
 })
 
-const toPayload = (f: FormState) => {
-  const data: Record<string, unknown> = Object.fromEntries(
-    Object.entries(f).filter(([, v]) => v !== ''),
-  )
-  if (data.latitude) data.latitude = parseFloat(data.latitude as string)
-  if (data.longitude) data.longitude = parseFloat(data.longitude as string)
-  return data
-}
+const toPayload = (f: FormState, nullEmpty = false) =>
+  buildFormPayload(f, {
+    nullableFields: nullEmpty ? nullableFields : [],
+    numberFields,
+  })
 
 export default function SpotsPage() {
   const router = useRouter()
@@ -79,7 +79,7 @@ export default function SpotsPage() {
       if (editingId) {
         await apiFetch<Spot>(`/api/spots/${editingId}`, {
           method: 'PUT',
-          body: JSON.stringify(toPayload(form)),
+          body: JSON.stringify(toPayload(form, true)),
         })
       } else {
         await apiFetch<Spot>('/api/spots', {

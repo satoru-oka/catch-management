@@ -81,6 +81,31 @@ describe('EditCatchPage', () => {
     expect(body.is_released).toBe(false)
   })
 
+  it('nullable な既存値を UI からクリアできる', async () => {
+    apiFetch.mockResolvedValueOnce(catchData)
+    apiFetch.mockResolvedValueOnce([])
+    apiFetch.mockResolvedValueOnce(undefined)
+    render(<EditCatchPage />)
+    await screen.findByLabelText('魚種 *')
+    const user = userEvent.setup()
+
+    await user.clear(screen.getByLabelText('サイズ (cm)'))
+    await user.clear(screen.getByLabelText('ルアー名'))
+    await user.clear(screen.getByLabelText('カラー'))
+    await user.clear(screen.getByLabelText('メモ'))
+    await user.click(screen.getByRole('button', { name: '変更を保存' }))
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/sessions/ses1'))
+    const [, init] = apiFetch.mock.calls[2]
+    const body = JSON.parse(init.body)
+    expect(body.length_cm).toBeNull()
+    expect(body.weight_g).toBeNull()
+    expect(body.lure_id).toBeNull()
+    expect(body.lure_name).toBeNull()
+    expect(body.lure_color).toBeNull()
+    expect(body.notes).toBeNull()
+  })
+
   it('削除ボタン: confirm 受諾で DELETE し詳細ページへ戻る', async () => {
     apiFetch.mockResolvedValueOnce(catchData)
     apiFetch.mockResolvedValueOnce([])
