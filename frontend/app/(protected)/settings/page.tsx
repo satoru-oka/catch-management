@@ -5,12 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { FullScreenSpinner } from '@/lib/Loading'
-
-type Profile = {
-  name: string
-  email: string
-  avatarUrl: string | null
-}
+import { extractProfile, profileInitial, type Profile } from '@/lib/profile'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -20,16 +15,7 @@ export default function SettingsPage() {
     createClient()
       .auth.getUser()
       .then(({ data }) => {
-        const u = data.user
-        if (!u) return
-        const meta = (u.user_metadata ?? {}) as Record<string, unknown>
-        const name =
-          (typeof meta.display_name === 'string' && meta.display_name) ||
-          (typeof meta.full_name === 'string' && meta.full_name) ||
-          u.email?.split('@')[0] ||
-          'ゲスト'
-        const avatarUrl = typeof meta.avatar_url === 'string' ? meta.avatar_url : null
-        setProfile({ name, email: u.email ?? '', avatarUrl })
+        setProfile(extractProfile(data.user))
       })
   }, [])
 
@@ -57,7 +43,7 @@ export default function SettingsPage() {
             />
           ) : (
             <div className="w-16 h-16 rounded-full bg-sky-100 text-sky-500 flex items-center justify-center text-2xl font-bold">
-              {profile.name[0]}
+              {profileInitial(profile.name)}
             </div>
           )}
           <div className="min-w-0 flex-1">

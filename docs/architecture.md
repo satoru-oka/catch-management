@@ -1,7 +1,7 @@
 # Architecture Snapshot
 
-> **Last updated**: 2026-05-06
-> **Branch**: `feature/integrate-local`
+> **Last updated**: 2026-06-03
+> **Branch**: `main`
 > **Purpose**: 将来の改修と比較するための、現時点のシステム全体スナップショット。
 >
 > このドキュメントは「凍結された一時点の写真」です。コード/構成を大きく変更したら
@@ -28,7 +28,7 @@ flowchart TB
     User -->|HTTPS<br/>ブラウザ| FE
     FE -->|"signInWithPassword<br/>getSession"| SBAuth
     FE -->|"REST<br/>Bearer JWT"| BE
-    BE -->|"auth.get_user(jwt)"| SBAuth
+    BE -.->|"fallback: auth.get_user(jwt)"| SBAuth
     BE -->|"PostgREST<br/>(JWT 中継)"| SBDB
 
     style FE fill:#dbeafe
@@ -39,6 +39,7 @@ flowchart TB
 **要点**:
 
 - バックエンドは **anon key のみ** 保有 (`service_role` 不使用)
+- `SUPABASE_JWT_SECRET` が設定されている場合、FastAPI はユーザー JWT をローカル検証する
 - DB アクセスは「ユーザーの JWT を PostgREST にそのまま中継」する方式 → DB 内部で `auth.uid()` が解決され RLS が効く
 - 認可ロジックがアプリ層に分散しないため、`.eq("user_id", ...)` の書き忘れによるデータ漏洩が構造的に発生しない
 
@@ -116,7 +117,7 @@ flowchart TB
     subgraph Frontend["Frontend (Next.js)"]
         direction TB
         Pages["UI Pages<br/>app/login, app/(protected)/*"]
-        Lib["lib/<br/>api.ts (apiFetch + ApiError)<br/>supabase.ts (Auth Client)<br/>types.ts (型定義)<br/>Loading.tsx"]
+        Lib["lib/<br/>api.ts (apiFetch + ApiError)<br/>supabase.ts (Auth Client)<br/>date/profile helpers<br/>types.ts (型定義)<br/>Loading.tsx"]
         Pages --> Lib
     end
 
@@ -125,9 +126,11 @@ flowchart TB
         Main["main.py<br/>CORS + Router 登録"]
         Routers["routers/<br/>spots, sessions, catches, lures"]
         AuthMod["auth.py<br/>get_current_user<br/>get_supabase"]
-        DBMod["database.py<br/>SUPABASE_URL/ANON_KEY"]
+        StatsMod["stats.py<br/>stats view fallback helpers"]
+        DBMod["supabase_client.py<br/>SUPABASE_URL/ANON_KEY"]
         Main --> Routers
         Routers --> AuthMod
+        Routers --> StatsMod
         Routers --> DBMod
         AuthMod --> DBMod
     end
@@ -141,13 +144,15 @@ flowchart TB
 
     Frontend -->|"Bearer JWT"| Backend
     Frontend -->|"SDK"| SBAuth
-    Backend -->|"JWT 検証"| SBAuth
+    Backend -.->|"JWT secret が未設定の場合のみ"| SBAuth
     Backend -->|"PostgREST<br/>+JWT"| Tables
 
     style Frontend fill:#dbeafe
     style Backend fill:#fef3c7
     style Supabase fill:#dcfce7
 ```
+
+`catches.lure_name` / `catches.lure_color` は履歴保存用の denormalized snapshot として扱う。`lure_id` が指すルアーマスターを後から rename / recolor しても、過去の釣果表示とルアー別統計は当時保存された snapshot 名を維持する。`lure_id` が `NULL` の自由入力や、ルアー削除後の履歴を自然に扱うための意図的な設計とする。
 
 ---
 
@@ -285,7 +290,7 @@ erDiagram
 
 ---
 
-## 7. 規模スナップショット (2026-05-06)
+## 7. 規模スナップショット (2026-06-03)
 
 将来の比較に使えるよう、現時点の数値を凍結して記録します。
 
@@ -293,17 +298,19 @@ erDiagram
 
 | 項目 | 値 |
 |---|---|
-| Backend Python LoC | 434 行 |
-| Frontend TS/TSX LoC | 1,851 行 |
-| Backend `.py` ファイル | 7 |
-| Frontend page.tsx | 10 |
-| Frontend `.ts/.tsx` 総数 | 17 |
-| API エンドポイント総数 | 22 |
+| Backend runtime Python LoC | 618 行 |
+| Frontend runtime TS/TSX LoC | 2,291 行 |
+| Backend runtime `.py` ファイル | 8 |
+| Frontend page.tsx | 11 |
+| Frontend runtime `.ts/.tsx` 総数 | 23 |
+| FastAPI app エンドポイント総数 | 24 (`/api/*` は 22) |
 | DB テーブル数 | 4 |
 
-### API エンドポイント (22 個)
+### FastAPI app エンドポイント (24 個)
 
 ```
+GET    /                                    GET    /healthz
+
 GET    /api/spots/                          POST   /api/spots/
 GET    /api/spots/{spot_id}                 PUT    /api/spots/{spot_id}
 DELETE /api/spots/{spot_id}                 GET    /api/spots/{spot_id}/sessions
@@ -362,10 +369,13 @@ DELETE /api/lures/{lure_id}
 |---|---|---|
 | 2026-05-06 | バックエンドから `service_role` を排除し RLS に認可を集約 | アプリ層で `.eq("user_id", ...)` を 1 箇所書き忘れたら全データ漏洩、というリスクを構造的に消すため |
 | 2026-05-06 | `(protected)` ルートグループで認証ガードを 1 箇所に集約 | 個別ページに認証チェックをコピペすると忘れが必ず発生するため |
-| 2026-05-06 | `apiFetch` で 401 自動サインアウト+リダイレクト | トークン期限切れで「読み込み中...」のまま固まる UX を回避 |
+| 2026-05-06 | 当初は `apiFetch` で 401 自動サインアウト+リダイレクト | トークン期限切れで「読み込み中...」のまま固まる UX を回避する初期実装 |
 | 2026-05-06 | `lib/types.ts` に API レスポンスの型を一元化 | API スキーマが変わった時のコンパイルエラーで影響範囲が即座に判明する |
 | 2026-05-06 | recharts を `next/dynamic` で `/stats` のみに分離 | ライブラリが他ページの初期バンドルに混入しないようにするため |
 | 2026-05-06 | `catches` のみ親 session 経由で認可 (RLS が `session_id IN (...)`) | 釣果は単独で意味を持たず、必ず釣行に従属するためデータモデル上自然 |
+| 2026-05-20 | 401 の signOut / redirect は `(protected)/layout.tsx` に集約 | `apiFetch` は 401 を通知して `ApiError` を投げ、認証状態の破棄と遷移は auth boundary が担う |
+| 2026-05-20 | 統計 API は `security_invoker` view を優先し、未作成環境では従来集計へ fallback | RLS を維持しながら DB 集計へ移行し、既存 Supabase project の段階的更新を可能にする |
+| 2026-05-20 | `catches.lure_name` / `lure_color` は履歴 snapshot として drift を許容 | ルアー rename 後も過去釣果の当時表記を維持し、自由入力・削除済みルアー履歴を扱うため |
 
 ---
 
@@ -375,9 +385,9 @@ DELETE /api/lures/{lure_id}
 |---|---|---|
 | **未実装機能** | 写真アップロード (`catches.photo_url` カラムは存在) | 中 |
 | **未実装機能** | パスワードリセット / アカウント作成 UI | 低 (個人利用なら) |
-| **テスト** | pytest / Vitest なし | 中〜高 (規模拡大時) |
-| **パフォーマンス** | `auth.get_user(token)` を毎リクエスト Supabase に問い合わせ | 低 (個人利用なら) |
-| **パフォーマンス** | 月別集計 ([sessions.py:60](../backend/routers/sessions.py#L60)) を Python で行う | 中 (データ増加時) |
+| **テスト** | E2E / Storybook なし。pytest integration は `TEST_SUPABASE_*` 設定時のみ実 Supabase に接続 | 中 |
+| **パフォーマンス** | `SUPABASE_JWT_SECRET` 未設定時は `auth.get_user(token)` fallback で外部問い合わせが発生 | 低 (JWT secret 設定で解消) |
+| **パフォーマンス** | 統計 view 未作成の Supabase project では Python 集計 fallback になる | 中 (view 作成で解消) |
 | **コード品質** | spots / lures ページの CRUD ロジックが重複 | 中 |
 | **コード品質** | API レスポンスの型定義が手動同期 (Pydantic ↔ TypeScript) | 中 (OpenAPI 自動生成余地) |
 | **DX** | E2E テストやストーリーブック等の UI 検証フローなし | 低 |
@@ -393,8 +403,10 @@ catch-management/
 │   └── architecture.md           ← このドキュメント
 ├── backend/
 │   ├── main.py
-│   ├── database.py
+│   ├── supabase_client.py
 │   ├── auth.py
+│   ├── stats.py
+│   ├── CLAUDE.md
 │   ├── pyproject.toml            (Ruff 設定)
 │   ├── requirements.txt
 │   ├── .env.example
@@ -433,6 +445,8 @@ catch-management/
     └── lib/
         ├── supabase.ts
         ├── api.ts
+        ├── date.ts
+        ├── profile.ts
         ├── types.ts
         └── Loading.tsx
 ```
@@ -446,3 +460,4 @@ catch-management/
 | 日付 | リビジョン | 主な変更 |
 |---|---|---|
 | 2026-05-06 | r1 | 初版。`service_role` 排除 + 認証ガード + 編集 UI 追加後の状態を記録 |
+| 2026-06-03 | r2 | §7 を再計測。旧スナップショットは Backend 434 LoC / Frontend 1,851 LoC / backend 7 files / page.tsx 10 / frontend 17 files / API endpoint 22 |

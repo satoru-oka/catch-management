@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
+import { tokyoDateIso } from '@/lib/date'
+import { buildFormPayload } from '@/lib/formPayload'
+import { fetchAllPages } from '@/lib/pagination'
 import type { Spot, Session } from '@/lib/types'
 
 type FormState = {
@@ -23,7 +26,7 @@ export default function NewSessionPage() {
   const [spots, setSpots] = useState<Spot[]>([])
   const [form, setForm] = useState<FormState>({
     spot_id: '',
-    date: new Date().toISOString().split('T')[0],
+    date: tokyoDateIso(),
     start_time: '',
     end_time: '',
     water_level: '',
@@ -33,7 +36,9 @@ export default function NewSessionPage() {
   })
 
   useEffect(() => {
-    apiFetch<Spot[]>('/api/spots').then(setSpots).catch(() => setSpots([]))
+    fetchAllPages<Spot>('/api/spots', (path) => apiFetch<Spot[]>(path))
+      .then(setSpots)
+      .catch(() => setSpots([]))
   }, [])
 
   const handleChange = (
@@ -46,7 +51,7 @@ export default function NewSessionPage() {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
-    const data = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== ''))
+    const data = buildFormPayload(form)
     try {
       await apiFetch<Session>('/api/sessions', { method: 'POST', body: JSON.stringify(data) })
       router.push('/')

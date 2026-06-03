@@ -1,5 +1,4 @@
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
@@ -25,8 +24,18 @@ class SpotUpdate(BaseModel):
 
 
 @router.get("/")
-def list_spots(db: Client = Depends(get_supabase)):
-    result = db.table("spots").select("*").execute()
+def list_spots(
+    db: Client = Depends(get_supabase),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    result = (
+        db.table("spots")
+        .select("*")
+        .order("name")
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
     return result.data
 
 
@@ -36,7 +45,7 @@ def create_spot(
     db: Client = Depends(get_supabase),
     user_id: str = Depends(get_current_user),
 ):
-    data = spot.model_dump()
+    data = {k: v for k, v in spot.model_dump().items() if v is not None}
     data["user_id"] = user_id
     result = db.table("spots").insert(data).execute()
     return result.data[0]
@@ -51,8 +60,13 @@ def get_spot(spot_id: str, db: Client = Depends(get_supabase)):
 
 
 @router.put("/{spot_id}")
-def update_spot(spot_id: str, spot: SpotUpdate, db: Client = Depends(get_supabase)):
-    data = {k: v for k, v in spot.model_dump().items() if v is not None}
+def update_spot(
+    spot_id: str,
+    spot: SpotUpdate,
+    db: Client = Depends(get_supabase),
+    _user_id: str = Depends(get_current_user),
+):
+    data = spot.model_dump(exclude_unset=True)
     result = db.table("spots").update(data).eq("id", spot_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ポイントが見つかりません")
@@ -60,7 +74,11 @@ def update_spot(spot_id: str, spot: SpotUpdate, db: Client = Depends(get_supabas
 
 
 @router.delete("/{spot_id}")
-def delete_spot(spot_id: str, db: Client = Depends(get_supabase)):
+def delete_spot(
+    spot_id: str,
+    db: Client = Depends(get_supabase),
+    _user_id: str = Depends(get_current_user),
+):
     result = db.table("spots").delete().eq("id", spot_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ポイントが見つかりません")
@@ -68,12 +86,18 @@ def delete_spot(spot_id: str, db: Client = Depends(get_supabase)):
 
 
 @router.get("/{spot_id}/sessions")
-def list_spot_sessions(spot_id: str, db: Client = Depends(get_supabase)):
+def list_spot_sessions(
+    spot_id: str,
+    db: Client = Depends(get_supabase),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     result = (
         db.table("sessions")
         .select("*")
         .eq("spot_id", spot_id)
         .order("date", desc=True)
+        .range(offset, offset + limit - 1)
         .execute()
     )
     return result.data
