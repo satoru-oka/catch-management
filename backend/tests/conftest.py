@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import os
 
-# database.py は import 時に環境変数を要求するのでダミー値を流し込む。
+# supabase_client.py は import 時に環境変数を要求するのでダミー値を流し込む。
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
+os.environ.setdefault("SUPABASE_JWT_SECRET", "unit-test-secret")
 
 from typing import Any
 
@@ -62,8 +63,17 @@ class FakeQueryBuilder:
     def ilike(self, *a, **k):
         return self._record("ilike", *a, **k)
 
+    def gte(self, *a, **k):
+        return self._record("gte", *a, **k)
+
+    def lte(self, *a, **k):
+        return self._record("lte", *a, **k)
+
     def order(self, *a, **k):
         return self._record("order", *a, **k)
+
+    def range(self, *a, **k):
+        return self._record("range", *a, **k)
 
     def execute(self) -> FakeResult:
         self._db.calls.append({"table": self._table, "ops": self._ops})
@@ -78,11 +88,14 @@ class FakeSupabase:
     """
 
     def __init__(self):
-        self._results: list[FakeResult] = []
+        self._results: list[FakeResult | Exception] = []
         self.calls: list[dict] = []
 
     def queue_result(self, data: Any) -> None:
         self._results.append(FakeResult(data))
+
+    def queue_error(self, exc: Exception) -> None:
+        self._results.append(exc)
 
     def table(self, name: str) -> FakeQueryBuilder:
         return FakeQueryBuilder(self, name)
@@ -90,7 +103,10 @@ class FakeSupabase:
     def _consume_result(self) -> FakeResult:
         if not self._results:
             return FakeResult([])
-        return self._results.pop(0)
+        result = self._results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
 @pytest.fixture

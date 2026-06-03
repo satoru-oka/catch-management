@@ -49,6 +49,26 @@ describe('LuresPage', () => {
     expect(await screen.findByText('Dコンタクト63')).toBeInTheDocument()
   })
 
+  it('50 件取得した場合はもっと読み込むボタンで次ページを追加する', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, i) => ({
+      ...baseLure,
+      id: `l${i}`,
+      name: `ルアー${i}`,
+    }))
+    apiFetch.mockResolvedValueOnce(firstPage)
+    apiFetch.mockResolvedValueOnce([{ ...baseLure, id: 'l51', name: '追加ルアー' }])
+    render(<LuresPage />)
+    await screen.findByText('ルアー0')
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'もっと読み込む' }))
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenLastCalledWith('/api/lures?limit=50&offset=50')
+    })
+    expect(await screen.findByText('追加ルアー')).toBeInTheDocument()
+  })
+
   it('空配列なら "ルアーがまだありません" が出る', async () => {
     apiFetch.mockResolvedValueOnce([])
     render(<LuresPage />)
@@ -104,6 +124,31 @@ describe('LuresPage', () => {
       expect(init.method).toBe('PUT')
       const body = JSON.parse(init.body)
       expect(body.color).toBe('ピンク')
+    })
+  })
+
+  it('編集時は nullable な既存値を null にクリアできる', async () => {
+    apiFetch.mockResolvedValueOnce([baseLure])
+    apiFetch.mockResolvedValueOnce({ ...baseLure, color: null, length_mm: null, notes: null })
+    apiFetch.mockResolvedValueOnce([{ ...baseLure, color: null, length_mm: null, notes: null }])
+    render(<LuresPage />)
+    await screen.findByText('Dコンタクト63')
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: '編集' }))
+    await user.clear(screen.getByLabelText('カラー'))
+    await user.clear(screen.getByLabelText('長さ (mm)'))
+    await user.clear(screen.getByLabelText('メモ'))
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      const [url, init] = apiFetch.mock.calls[1]
+      expect(url).toBe('/api/lures/l1')
+      expect(init.method).toBe('PUT')
+      const body = JSON.parse(init.body)
+      expect(body.color).toBeNull()
+      expect(body.length_mm).toBeNull()
+      expect(body.notes).toBeNull()
     })
   })
 

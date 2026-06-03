@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
-export const UNAUTHORIZED_EVENT = 'catch-management:unauthorized'
+export const UNAUTHORIZED_EVENT = 'auth:unauthorized'
 
 export class ApiError extends Error {
   status: number

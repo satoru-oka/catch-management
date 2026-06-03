@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
+import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
+import { fetchAllPages } from '@/lib/pagination'
 import type { SessionDetail, Spot } from '@/lib/types'
 
 type FormState = {
@@ -28,6 +30,16 @@ const empty: FormState = {
   notes: '',
 }
 
+const nullableFields = [
+  'spot_id',
+  'start_time',
+  'end_time',
+  'water_level',
+  'water_clarity',
+  'weather',
+  'notes',
+]
+
 export default function EditSessionPage() {
   const router = useRouter()
   const params = useParams<{ id: string }>()
@@ -41,7 +53,9 @@ export default function EditSessionPage() {
   useEffect(() => {
     Promise.all([
       apiFetch<SessionDetail>(`/api/sessions/${id}`),
-      apiFetch<Spot[]>('/api/spots').catch(() => [] as Spot[]),
+      fetchAllPages<Spot>('/api/spots', (path) => apiFetch<Spot[]>(path)).catch(
+        () => [] as Spot[],
+      ),
     ])
       .then(([s, sp]) => {
         setSpots(sp)
@@ -70,8 +84,7 @@ export default function EditSessionPage() {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
-    // 空文字フィールドは送らない (バックエンドが None を捨てて未指定扱いにする)
-    const payload = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== ''))
+    const payload = buildFormPayload(form, { nullableFields })
     try {
       await apiFetch(`/api/sessions/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
       router.push(`/sessions/${id}`)

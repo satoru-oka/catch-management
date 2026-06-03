@@ -14,6 +14,23 @@ def test_list_lures(client, fake_db):
     assert res.json()[0]["name"] == "ミノー"
     ops = fake_db.calls[0]["ops"]
     assert any(op[0] == "order" and op[1] == ("name",) for op in ops)
+    assert ("range", (0, 49), {}) in ops
+
+
+def test_list_lures_applies_limit_offset(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.get("/api/lures/?limit=30&offset=60")
+
+    assert res.status_code == 200
+    ops = fake_db.calls[0]["ops"]
+    assert ("range", (60, 89), {}) in ops
+
+
+def test_list_lures_rejects_limit_over_max(client):
+    res = client.get("/api/lures/?limit=201")
+
+    assert res.status_code == 422
 
 
 def test_create_lure_assigns_user_id(client, fake_db):
@@ -53,13 +70,23 @@ def test_create_lure_validation_requires_name(client):
     assert res.status_code == 422
 
 
-def test_update_lure_strips_none(client, fake_db):
+def test_update_lure_preserves_explicit_none(client, fake_db):
     fake_db.queue_result([{"id": "l1", "color": "赤金"}])
 
     res = client.put(
         "/api/lures/l1",
         json={"color": "赤金", "notes": None},
     )
+
+    assert res.status_code == 200
+    update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
+    assert update_op[1][0] == {"color": "赤金", "notes": None}
+
+
+def test_update_lure_leaves_unset_fields_out(client, fake_db):
+    fake_db.queue_result([{"id": "l1", "color": "赤金"}])
+
+    res = client.put("/api/lures/l1", json={"color": "赤金"})
 
     assert res.status_code == 200
     update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
@@ -95,16 +122,15 @@ def test_delete_lure_not_found(client, fake_db):
 def test_lure_stats_aggregates_by_lure_name(client, fake_db):
     fake_db.queue_result(
         [
-            {"lure_name": "ミノー", "lure_color": "赤金", "length_cm": 20.0},
-            {"lure_name": "ミノー", "lure_color": "赤金", "length_cm": 25.0},
-            {"lure_name": "スプーン", "lure_color": "銀", "length_cm": 30.0},
-            {"lure_name": "スプーン", "lure_color": "銀", "length_cm": None},
+            {"lure_name": "ミノー", "count": 2, "avg_length": 22.5},
+            {"lure_name": "スプーン", "count": 2, "avg_length": 30.0},
         ]
     )
 
     res = client.get("/api/lures/stats")
 
     assert res.status_code == 200
+    assert fake_db.calls[0]["table"] == "user_lure_stats"
     body = res.json()
     assert body["ミノー"]["count"] == 2
     assert body["ミノー"]["avg_length"] == 22.5
@@ -115,8 +141,7 @@ def test_lure_stats_aggregates_by_lure_name(client, fake_db):
 def test_lure_stats_groups_unknown_under_unknown_label(client, fake_db):
     fake_db.queue_result(
         [
-            {"lure_name": None, "lure_color": None, "length_cm": 18.0},
-            {"lure_name": "", "lure_color": None, "length_cm": 22.0},
+            {"lure_name": None, "count": 2, "avg_length": 20.0},
         ]
     )
 
@@ -130,12 +155,35 @@ def test_lure_stats_groups_unknown_under_unknown_label(client, fake_db):
 
 
 def test_lure_stats_avg_length_zero_when_no_lengths(client, fake_db):
-    fake_db.queue_result([{"lure_name": "ジグ", "lure_color": "黒", "length_cm": None}])
+    fake_db.queue_result([{"lure_name": "ジグ", "count": 1, "avg_length": None}])
 
     res = client.get("/api/lures/stats")
 
     assert res.status_code == 200
     assert res.json()["ジグ"] == {"count": 1, "avg_length": 0}
+
+
+def test_lure_stats_falls_back_without_lure_color_select(client, fake_db):
+    fake_db.queue_error(RuntimeError("Could not find the table user_lure_stats in schema cache"))
+    fake_db.queue_result(
+        [
+            {"lure_name": "ミノー", "length_cm": 20},
+            {"lure_name": "ミノー", "length_cm": 30},
+            {"lure_name": None, "length_cm": None},
+        ]
+    )
+
+    res = client.get("/api/lures/stats")
+
+    assert res.status_code == 200
+    assert fake_db.calls[0]["table"] == "user_lure_stats"
+    assert fake_db.calls[1]["table"] == "catches"
+    fallback_select = next(op for op in fake_db.calls[1]["ops"] if op[0] == "select")
+    assert fallback_select[1] == ("lure_name, length_cm",)
+    assert res.json() == {
+        "ミノー": {"count": 2, "avg_length": 25.0},
+        "不明": {"count": 1, "avg_length": 0},
+    }
 
 
 def test_lure_stats_empty(client, fake_db):

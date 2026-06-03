@@ -31,7 +31,7 @@
 ├── backend/                 # FastAPI API
 │   ├── main.py              # FastAPI app, CORS, exception handlers
 │   ├── auth.py              # JWT 検証と user-scoped Supabase client
-│   ├── database.py          # Supabase URL / anon key と認証検証用 client
+│   ├── supabase_client.py   # Supabase URL / anon key と認証検証用 client
 │   ├── routers/             # spots / sessions / catches / lures
 │   └── tests/               # pytest unit + integration tests
 ├── frontend/                # Next.js App Router app
@@ -80,6 +80,7 @@ cp .env.example .env
 ```env
 SUPABASE_URL=https://xxxx.supabase.co
 SUPABASE_ANON_KEY=your_anon_key_here
+SUPABASE_JWT_SECRET=your_jwt_secret_here
 ALLOWED_ORIGINS=http://localhost:3000
 ```
 
@@ -115,6 +116,41 @@ npm run dev
 ```
 
 アプリ: [http://localhost:3000](http://localhost:3000)
+
+## 環境変数
+
+実 key は README に書かず、ローカルの `.env` / `.env.local` / `.env.test` にだけ置きます。
+
+### Backend runtime (`backend/.env`)
+
+| 変数 | 用途 |
+|---|---|
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | RLS 前提で使う anon key |
+| `SUPABASE_JWT_SECRET` | FastAPI 側で JWT をローカル検証するための secret |
+| `ALLOWED_ORIGINS` | CORS 許可 origin。カンマ区切りで複数指定可 |
+
+テンプレート: [backend/.env.example](backend/.env.example)
+
+### Frontend runtime (`frontend/.env.local`)
+
+| 変数 | 用途 |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | ブラウザ用 Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ブラウザ用 anon key |
+| `NEXT_PUBLIC_API_URL` | FastAPI の base URL |
+
+### Backend integration test (`backend/.env.test`)
+
+| 変数 | 用途 |
+|---|---|
+| `TEST_SUPABASE_URL` | 結合テスト用 Supabase project URL |
+| `TEST_SUPABASE_ANON_KEY` | 結合テスト用 anon key |
+| `TEST_SUPABASE_SERVICE_ROLE_KEY` | テストユーザー作成 / 削除だけに使う service role key |
+| `TEST_USER_EMAIL` / `TEST_USER_PASSWORD` | 結合テスト用ユーザー A |
+| `TEST_USER2_EMAIL` / `TEST_USER2_PASSWORD` | 結合テスト用ユーザー B |
+
+テンプレート: [backend/.env.test.example](backend/.env.test.example)
 
 ## 開発コマンド
 
@@ -158,6 +194,18 @@ GitHub Actions は backend、frontend、integration の 3 job を実行します
 - [docs/testing.md](docs/testing.md): テスト戦略、fixture、CI
 - [docs/known-issues.md](docs/known-issues.md): 発見済みバグと修正履歴
 - [docs/code-review.md](docs/code-review.md): 改善候補と GitHub issue 対応状況
+
+## 今後の改善予定
+
+長い TODO は README に抱え込まず、[GitHub issues](https://github.com/satoru-oka/catch-management/issues) と [docs/code-review.md](docs/code-review.md) で管理します。
+
+現在の主な候補:
+
+- 一覧 API と UI のページング
+- 検索 / 並び替え条件の拡張
+- RLS 境界の integration test 補強
+- nullable field を UI から明示的にクリアできる編集体験
+- 写真アップロードやパスワードリセットなどの未実装機能
 
 ## 開発メモ
 

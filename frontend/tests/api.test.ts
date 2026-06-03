@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `lib/supabase` の createClient を差し替え可能にするため、トップでモックする。
+const signOut = vi.fn().mockResolvedValue(undefined)
 const getSession = vi.fn()
 vi.mock('@/lib/supabase', () => ({
   createClient: () => ({
     auth: {
       getSession,
+      signOut,
     },
   }),
 }))
@@ -14,6 +16,8 @@ import { ApiError, apiFetch, UNAUTHORIZED_EVENT } from '@/lib/api'
 
 beforeEach(() => {
   getSession.mockReset()
+  signOut.mockClear()
+  signOut.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -70,30 +74,38 @@ describe('apiFetch', () => {
     })
   })
 
-  it('セッション無しなら 401 ApiError を投げ、unauthorized event を通知する', async () => {
+  it('セッション無しなら 401 ApiError を投げ、認証切れイベントを通知する', async () => {
     getSession.mockResolvedValue({ data: { session: null } })
     const fetchMock = mockFetch({ ok: true, status: 200 })
-    const onUnauthorized = vi.fn()
-    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+    const unauthorized = vi.fn()
+    window.addEventListener(UNAUTHORIZED_EVENT, unauthorized)
 
-    await expect(apiFetch('/api/spots/')).rejects.toMatchObject({
-      status: 401,
-      detail: 'Not authenticated',
-    })
-    expect(fetchMock).not.toHaveBeenCalled()
-    expect(onUnauthorized).toHaveBeenCalledTimes(1)
-    window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+    try {
+      await expect(apiFetch('/api/spots/')).rejects.toMatchObject({
+        status: 401,
+        detail: 'Not authenticated',
+      })
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(signOut).not.toHaveBeenCalled()
+      expect(unauthorized).toHaveBeenCalledTimes(1)
+    } finally {
+      window.removeEventListener(UNAUTHORIZED_EVENT, unauthorized)
+    }
   })
 
-  it('レスポンス 401 でも unauthorized event を通知してエラーを投げる', async () => {
+  it('レスポンス 401 でも認証切れイベントを通知してエラーを投げる', async () => {
     getSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } })
     mockFetch({ ok: false, status: 401, jsonBody: { detail: 'Token expired' } })
-    const onUnauthorized = vi.fn()
-    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+    const unauthorized = vi.fn()
+    window.addEventListener(UNAUTHORIZED_EVENT, unauthorized)
 
-    await expect(apiFetch('/api/spots/')).rejects.toBeInstanceOf(ApiError)
-    expect(onUnauthorized).toHaveBeenCalledTimes(1)
-    window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
+    try {
+      await expect(apiFetch('/api/spots/')).rejects.toBeInstanceOf(ApiError)
+      expect(signOut).not.toHaveBeenCalled()
+      expect(unauthorized).toHaveBeenCalledTimes(1)
+    } finally {
+      window.removeEventListener(UNAUTHORIZED_EVENT, unauthorized)
+    }
   })
 
   it('4xx/5xx エラーで body の detail を使った ApiError を投げる', async () => {
@@ -104,6 +116,27 @@ describe('apiFetch', () => {
       status: 404,
       detail: '見つかりません',
     })
+  })
+
+  it('503 では認証切れイベントを通知しない', async () => {
+    getSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } })
+    mockFetch({
+      ok: false,
+      status: 503,
+      jsonBody: { detail: 'Auth service unavailable' },
+    })
+    const unauthorized = vi.fn()
+    window.addEventListener(UNAUTHORIZED_EVENT, unauthorized)
+
+    try {
+      await expect(apiFetch('/api/spots/')).rejects.toMatchObject({
+        status: 503,
+        detail: 'Auth service unavailable',
+      })
+      expect(unauthorized).not.toHaveBeenCalled()
+    } finally {
+      window.removeEventListener(UNAUTHORIZED_EVENT, unauthorized)
+    }
   })
 
   it('エラーレスポンスの body が JSON でなくてもクラッシュしない', async () => {
@@ -123,20 +156,6 @@ describe('apiFetch', () => {
       status: 500,
       detail: 'HTTP 500',
     })
-  })
-
-  it('503 では unauthorized event を通知しない', async () => {
-    getSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } })
-    mockFetch({ ok: false, status: 503, jsonBody: { detail: 'Service unavailable' } })
-    const onUnauthorized = vi.fn()
-    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
-
-    await expect(apiFetch('/api/spots/')).rejects.toMatchObject({
-      status: 503,
-      detail: 'Service unavailable',
-    })
-    expect(onUnauthorized).not.toHaveBeenCalled()
-    window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
   })
 
   it('204 No Content では undefined を返す', async () => {

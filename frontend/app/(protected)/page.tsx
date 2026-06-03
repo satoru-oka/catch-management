@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { apiFetch, ApiError } from '@/lib/api'
+import { tokyoDateIso } from '@/lib/date'
+import { fetchAllPages } from '@/lib/pagination'
+import { extractProfile, profileInitial, type Profile } from '@/lib/profile'
 import { FullScreenSpinner } from '@/lib/Loading'
 import type { Catch, SessionWithSpot } from '@/lib/types'
 
@@ -11,24 +14,21 @@ type CatchWithSession = Catch & {
   sessions: { date: string; spot_id: string | null } | null
 }
 
-type Profile = {
-  name: string
-  avatarUrl: string | null
-}
-
 const WEEKDAY = ['日', '月', '火', '水', '木', '金', '土']
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
 function formatJpDate(iso: string): string {
-  const d = new Date(iso)
-  return `${d.getMonth() + 1}月${d.getDate()}日(${WEEKDAY[d.getDay()]})`
+  const [year, month, day] = iso.split('-').map(Number)
+  const d = new Date(year, month - 1, day)
+  return `${month}月${day}日(${WEEKDAY[d.getDay()]})`
 }
 
 function catchDate(c: CatchWithSession): string {
-  return (c.caught_at ?? c.sessions?.date ?? '').slice(0, 10)
+  if (c.caught_at) {
+    const date = new Date(c.caught_at)
+    if (!Number.isNaN(date.getTime())) return tokyoDateIso(date)
+    return c.caught_at.slice(0, 10)
+  }
+  return c.sessions?.date?.slice(0, 10) ?? ''
 }
 
 export default function HomePage() {
@@ -40,51 +40,56 @@ export default function HomePage() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch<CatchWithSession[]>('/api/catches'),
-      apiFetch<SessionWithSpot[]>('/api/sessions'),
+      fetchAllPages<CatchWithSession>('/api/catches', (path) =>
+        apiFetch<CatchWithSession[]>(path),
+      ),
+      fetchAllPages<SessionWithSpot>('/api/sessions', (path) =>
+        apiFetch<SessionWithSpot[]>(path),
+      ),
       createClient().auth.getUser(),
     ])
       .then(([c, s, { data }]) => {
         setCatches(c)
         setSessions(s)
-        const u = data.user
-        const meta = (u?.user_metadata ?? {}) as Record<string, unknown>
-        const name =
-          (typeof meta.display_name === 'string' && meta.display_name) ||
-          (typeof meta.full_name === 'string' && meta.full_name) ||
-          u?.email?.split('@')[0] ||
-          'ゲスト'
-        const avatarUrl = typeof meta.avatar_url === 'string' ? meta.avatar_url : null
-        setProfile({ name, avatarUrl })
+        setProfile(extractProfile(data.user))
       })
       .catch((e: ApiError) => setError(e.detail))
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <FullScreenSpinner />
-
-  const today = todayIso()
-  const monthStart = today.slice(0, 7) + '-01'
-
-  const todaysCatches = catches.filter((c) => catchDate(c) === today)
-  const monthlyCatches = catches.filter((c) => catchDate(c) >= monthStart)
-
-  const todayCount = todaysCatches.length
-  const todayWeightKg = todaysCatches.reduce((sum, c) => sum + (c.weight_g ?? 0), 0) / 1000
-  const todayMaxCm = todaysCatches.reduce((m, c) => Math.max(m, c.length_cm ?? 0), 0)
-
-  const lifetime = catches.length
-  const monthly = monthlyCatches.length
-
-  const maxCatch = catches.reduce<CatchWithSession | null>((max, c) => {
-    if ((c.length_cm ?? 0) > (max?.length_cm ?? 0)) return c
-    return max
-  }, null)
-
-  const sessionById = new Map(sessions.map((s) => [s.id, s]))
-  const recent = catches.slice(0, 3)
-
+  const today = useMemo(() => tokyoDateIso(), [])
+  const monthStart = useMemo(() => `${today.slice(0, 7)}-01`, [today])
   const greetingName = profile?.name ?? 'ゲスト'
+  const greetingInitial = useMemo(() => profileInitial(greetingName), [greetingName])
+  const {
+    todayCount,
+    todayWeightKg,
+    todayMaxCm,
+    lifetime,
+    monthly,
+    maxCatch,
+    sessionById,
+    recent,
+  } = useMemo(() => {
+    const todaysCatches = catches.filter((c) => catchDate(c) === today)
+    const monthlyCatches = catches.filter((c) => catchDate(c) >= monthStart)
+    return {
+      todayCount: todaysCatches.length,
+      todayWeightKg:
+        todaysCatches.reduce((sum, c) => sum + (c.weight_g ?? 0), 0) / 1000,
+      todayMaxCm: todaysCatches.reduce((m, c) => Math.max(m, c.length_cm ?? 0), 0),
+      lifetime: catches.length,
+      monthly: monthlyCatches.length,
+      maxCatch: catches.reduce<CatchWithSession | null>((max, c) => {
+        if ((c.length_cm ?? 0) > (max?.length_cm ?? 0)) return c
+        return max
+      }, null),
+      sessionById: new Map(sessions.map((s) => [s.id, s])),
+      recent: catches.slice(0, 3),
+    }
+  }, [catches, monthStart, sessions, today])
+
+  if (loading) return <FullScreenSpinner />
 
   return (
     <div className="min-h-screen bg-sky-50">
@@ -113,7 +118,7 @@ export default function HomePage() {
               />
             ) : (
               <div className="w-14 h-14 rounded-full bg-white/30 border-2 border-white flex items-center justify-center text-xl font-bold shadow">
-                {greetingName[0]}
+                {greetingInitial}
               </div>
             )}
           </Link>
