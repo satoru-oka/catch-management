@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
+import { tokyoDateIso } from '@/lib/date'
 import type { Spot, Session } from '@/lib/types'
 
 type FormState = {
@@ -23,7 +24,7 @@ export default function NewSessionPage() {
   const [spots, setSpots] = useState<Spot[]>([])
   const [form, setForm] = useState<FormState>({
     spot_id: '',
-    date: new Date().toISOString().split('T')[0],
+    date: tokyoDateIso(),
     start_time: '',
     end_time: '',
     water_level: '',

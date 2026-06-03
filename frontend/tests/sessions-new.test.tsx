@@ -22,7 +22,10 @@ beforeEach(() => {
   apiFetch.mockReset()
 })
 
-afterEach(() => vi.clearAllMocks())
+afterEach(() => {
+  vi.clearAllMocks()
+  vi.useRealTimers()
+})
 
 describe('NewSessionPage', () => {
   it('マウント時にスポット一覧を取得する', async () => {
@@ -44,12 +47,13 @@ describe('NewSessionPage', () => {
     expect(await screen.findByText(/ポイント管理/)).toBeInTheDocument()
   })
 
-  it('日付は今日の YYYY-MM-DD で初期化される', () => {
+  it('日付は JST の今日の YYYY-MM-DD で初期化される', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-05-31T15:30:00.000Z')) // 2026-06-01 00:30 JST
     apiFetch.mockResolvedValueOnce([])
     render(<NewSessionPage />)
-    const today = new Date().toISOString().split('T')[0]
     const dateInput = screen.getByLabelText('日付 *') as HTMLInputElement
-    expect(dateInput.value).toBe(today)
+    expect(dateInput.value).toBe('2026-06-01')
   })
 
   it('保存時に空文字フィールドを除外して POST、成功で / へ遷移', async () => {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { apiFetch, ApiError } from '@/lib/api'
+import { tokyoDateIso } from '@/lib/date'
 import { FullScreenSpinner } from '@/lib/Loading'
 import type { Catch, SessionWithSpot } from '@/lib/types'
 
@@ -17,18 +18,6 @@ type Profile = {
 }
 
 const WEEKDAY = ['日', '月', '火', '水', '木', '金', '土']
-const TOKYO_TIME_ZONE = 'Asia/Tokyo'
-
-function tokyoDateIso(date: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: TOKYO_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date)
-  const value = (type: string) => parts.find((part) => part.type === type)?.value
-  return `${value('year')}-${value('month')}-${value('day')}`
-}
 
 function formatJpDate(iso: string): string {
   const [year, month, day] = iso.split('-').map(Number)
