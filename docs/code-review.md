@@ -289,7 +289,7 @@
 |---|---|---|---|
 | H-1 | 🟡 | `todayIso()` が `new Date().toISOString().slice(0, 10)` で **UTC ベース** ([page.tsx:21-23](frontend/app/(protected)/page.tsx#L21-L23))。JST 深夜に開くと「今日」が UTC 前日になり、登録した釣果が前日扱いに | **DONE** [#26](https://github.com/satoru-oka/catch-management/issues/26), [#46](https://github.com/satoru-oka/catch-management/issues/46): `tokyoDateIso` を `frontend/lib/date.ts` に切り出し、home と `sessions/new` の初期日付へ展開済み |
 | H-2 | 🟡 | `catches.filter` / `reduce` / `new Map(sessions.map(...))` がレンダーごとに走る ([page.tsx:69-85](frontend/app/(protected)/page.tsx#L69-L85))。釣果が数百件溜まると体感に出る | **DONE** [#35](https://github.com/satoru-oka/catch-management/issues/35): 派生値を `useMemo` 化 |
-| H-3 | 🟢 | `greetingName[0]` で頭文字取得 ([page.tsx:116](frontend/app/(protected)/page.tsx#L116))。サロゲートペア (絵文字名) で文字化けする | **DONE** [#35](https://github.com/satoru-oka/catch-management/issues/35): `[...greetingName][0]` で code point 単位に変更 |
+| H-3 | 🟢 | `greetingName[0]` で頭文字取得 ([page.tsx:116](frontend/app/(protected)/page.tsx#L116))。サロゲートペア (絵文字名) で文字化けする | **DONE** [#35](https://github.com/satoru-oka/catch-management/issues/35), [#47](https://github.com/satoru-oka/catch-management/issues/47): `profileInitial()` に共通化し、settings の avatar fallback にも適用 |
 | H-4 | 🟢 | `eslint-disable-next-line @next/next/no-img-element` で `<img>` 直書き ([page.tsx:108](frontend/app/(protected)/page.tsx#L108), [page.tsx:205](frontend/app/(protected)/page.tsx#L205))。Supabase Storage のホストを `next.config.ts` に登録すれば `next/image` 化可 | **WONTFIX** [#35](https://github.com/satoru-oka/catch-management/issues/35): avatar / photo URL の remote host が未固定のため、画像機能設計時に再検討 |
 
 ---
@@ -344,6 +344,8 @@
 |---|---|---|---|---|
 | FX-1 | 🟡 | フォーム edit 系で「空文字を送らない」回避策で NULL クリア不可。X-2 の表側 | sessions/[id]/edit, catches/[catchId]/edit, lures, spots | **OPEN** [#38](https://github.com/satoru-oka/catch-management/issues/38): X-2 (backend で `exclude_unset=True`) 解消後に撤去 |
 | FX-2 | 🟢 | `useEffect` の依存配列が `apiFetch` などモジュールスコープ関数を省略している箇所多数 | (protected) 配下のページほぼ全部 | **DONE** [#28](https://github.com/satoru-oka/catch-management/issues/28): Next.js の hooks lint を CI で `npm run lint -- --max-warnings=0` として継続実行 |
+| FX-3 | 🟡 | home / settings で user metadata から profile を組み立てる処理が重複し、settings だけ Unicode unsafe な頭文字取得が残る | home, settings, frontend/lib/profile.ts | **DONE** [#47](https://github.com/satoru-oka/catch-management/issues/47): `extractProfile()` / `profileInitial()` に共通化 |
+| FL-1 | 🟢 | ログイン済みでも `/login` を直接開くとログインフォームが表示される | login | **DONE** [#50](https://github.com/satoru-oka/catch-management/issues/50): 初回 `getSession()` で既存 session があれば `/` へ `replace` |
 
 ---
 

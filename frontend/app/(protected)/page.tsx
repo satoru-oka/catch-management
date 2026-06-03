@@ -5,16 +5,12 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { apiFetch, ApiError } from '@/lib/api'
 import { tokyoDateIso } from '@/lib/date'
+import { extractProfile, profileInitial, type Profile } from '@/lib/profile'
 import { FullScreenSpinner } from '@/lib/Loading'
 import type { Catch, SessionWithSpot } from '@/lib/types'
 
 type CatchWithSession = Catch & {
   sessions: { date: string; spot_id: string | null } | null
-}
-
-type Profile = {
-  name: string
-  avatarUrl: string | null
 }
 
 const WEEKDAY = ['日', '月', '火', '水', '木', '金', '土']
@@ -50,15 +46,7 @@ export default function HomePage() {
       .then(([c, s, { data }]) => {
         setCatches(c)
         setSessions(s)
-        const u = data.user
-        const meta = (u?.user_metadata ?? {}) as Record<string, unknown>
-        const name =
-          (typeof meta.display_name === 'string' && meta.display_name) ||
-          (typeof meta.full_name === 'string' && meta.full_name) ||
-          u?.email?.split('@')[0] ||
-          'ゲスト'
-        const avatarUrl = typeof meta.avatar_url === 'string' ? meta.avatar_url : null
-        setProfile({ name, avatarUrl })
+        setProfile(extractProfile(data.user))
       })
       .catch((e: ApiError) => setError(e.detail))
       .finally(() => setLoading(false))
@@ -67,7 +55,7 @@ export default function HomePage() {
   const today = useMemo(() => tokyoDateIso(), [])
   const monthStart = useMemo(() => `${today.slice(0, 7)}-01`, [today])
   const greetingName = profile?.name ?? 'ゲスト'
-  const greetingInitial = useMemo(() => [...greetingName][0] ?? 'ゲ', [greetingName])
+  const greetingInitial = useMemo(() => profileInitial(greetingName), [greetingName])
   const {
     todayCount,
     todayWeightKg,
