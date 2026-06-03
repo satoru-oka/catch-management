@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from supabase import Client
 
 from auth import get_current_user, get_supabase
+from stats import is_missing_view_error
 
 router = APIRouter(prefix="/api/lures", tags=["lures"])
 
@@ -81,11 +82,11 @@ def lure_stats(db: Client = Depends(get_supabase)):
         )
         return _format_lure_stats_rows(result.data)
     except Exception as e:
-        if not _is_missing_stats_view_error(e):
+        if not is_missing_view_error(e, "user_lure_stats"):
             raise
 
     # RLSによりログインユーザーのcatchesのみ取得される
-    result = db.table("catches").select("lure_name, lure_color, length_cm").execute()
+    result = db.table("catches").select("lure_name, length_cm").execute()
     stats = {}
     for catch in result.data:
         key = catch.get("lure_name") or "不明"
@@ -109,14 +110,3 @@ def _format_lure_stats_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str, f
         }
         for row in rows
     }
-
-
-def _is_missing_stats_view_error(exc: Exception) -> bool:
-    code = getattr(exc, "code", None)
-    if code is None and exc.args and isinstance(exc.args[0], dict):
-        code = exc.args[0].get("code")
-    message = str(exc).lower()
-    return code in {"42P01", "PGRST205"} or (
-        "user_lure_stats" in message
-        and ("does not exist" in message or "could not find" in message)
-    )

@@ -49,7 +49,7 @@
 | M-2 | 🟡 | PGRST301/302 以外の 500 経路がログに残らず障害調査不能 | **DONE** PR #7 (15231ca): `logger.exception("Unhandled PostgREST error: code=%s", code)` |
 | M-3 | 🟡 | 未捕捉例外で FastAPI のデフォルト HTML が返り、フロントの `apiFetch` が `res.json()` で SyntaxError → 無限ローディング | **DONE** PR #7 (15231ca): `@app.exception_handler(Exception)` で 500 JSON 統一 |
 | M-4 | 🟡 | `allow_credentials=True` だが Bearer 認証で Cookie 不使用 | **WONTFIX**: 将来 Cookie 認証に切り替える可能性を残す。害なし |
-| M-5 | 🟢 | `/` の役割が曖昧 (liveness check として `/healthz` が無い) | **OPEN** [#8](https://github.com/satoru-oka/catch-management/issues/8): 監視系を入れる時に追加 |
+| M-5 | 🟢 | `/` の役割が曖昧 (liveness check として `/healthz` が無い) | **DONE** [#8](https://github.com/satoru-oka/catch-management/issues/8): 互換の `/` は残し、`/healthz` が `{"status": "ok"}` を返す |
 | M-6 | 🟢 | `include_router` の順序が import 順 (アルファベット) と不一致 | **DONE** PR #7 (15231ca): アルファベット順に揃えた |
 
 ---
@@ -100,7 +100,8 @@
 | A-2 | 🟡 | `get_supabase` がリクエスト毎に `create_client` を呼び、httpx 接続プールが生きない | **WONTFIX** [#14](https://github.com/satoru-oka/catch-management/issues/14): 共有 mutable client は JWT 混入リスクが高いため採用せず、`scripts/benchmark_supabase_client.py --iterations 1000` で約 20.17ms/回 |
 | A-3 | 🟢 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` の型 narrowing が弱い | **DUPE**: D-2 で扱い済み |
 | A-4 | 🟢 | broad な `except Exception` で Supabase Auth 障害も `Invalid token` 401 にマップされる。フロントが自動ログアウトする | **OPEN** [#15](https://github.com/satoru-oka/catch-management/issues/15): `AuthRetryableError` を 503 にマップ。A-1 で自前検証化すれば不要 |
-| A-5 | ⚪ | `HTTPBearer()` の `auto_error` を明示していない | **DONE** [#30](https://github.com/satoru-oka/catch-management/issues/30): `HTTPBearer(auto_error=True)` で意図を明示 |
+| A-5 | ⚪ | `HTTPBearer()` の `auto_error` を明示していない | **DONE** [#30](https://github.com/satoru-oka/catch-management/issues/30): `auto_error` を明示し、未認証レスポンスは A-6 で 401 に統一 |
+| A-6 | 🟢 | Authorization ヘッダ無しが FastAPI 既定の 403 になり、未認証 = 401 の API 仕様とずれる | **DONE** [#51](https://github.com/satoru-oka/catch-management/issues/51): `HTTPBearer(auto_error=False)` + 明示 `401 Not authenticated` |
 
 ---
 
@@ -196,6 +197,7 @@
 | L-2 | 🟡 | `lure_stats` が `lure_name` 文字列でグルーピング。lure を rename すると統計が分裂 | **WONTFIX** (C-2) [#17](https://github.com/satoru-oka/catch-management/issues/17): ルアー名は履歴 snapshot として扱うため、統計も当時名で集計 |
 | L-3 | 🟢 | `update_lure` でフィールドクリア不可 | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): `exclude_unset=True` に変更し、明示 `null` は更新ペイロードに残す |
 | L-4 | ⚪ | `list_lures` に並び替え指定パラメータ無し (常に name asc) | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): ニーズが出たら追加 |
+| L-6 | 🟢 | `lure_stats` fallback が未使用の `lure_color` を SELECT している | **DONE** [#49](https://github.com/satoru-oka/catch-management/issues/49): fallback select を `lure_name, length_cm` に縮小 |
 
 ---
 
@@ -208,6 +210,7 @@
 | X-1 | 🟡 | list 系エンドポイントに **ページング無し** | spots / sessions / catches / lures (5 endpoint) | **OPEN** [#19](https://github.com/satoru-oka/catch-management/issues/19) |
 | X-2 | 🟡 | PUT で `if v is not None` フィルタにより **NULL クリア不可** | spots / sessions / catches / lures (4 endpoint) | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): 全 PUT を `exclude_unset=True` ベースにして、未指定と明示 `null` を区別 |
 | X-3 | 🟢 | INSERT の None 扱いが [spots.py:39](backend/routers/spots.py#L39) のみ非対称 | spots vs others | **DONE** [#21](https://github.com/satoru-oka/catch-management/issues/21): `create_spot` も optional `None` を除外 |
+| X-6 | 🟡 | stats view fallback の欠落判定 helper が `sessions.py` / `lures.py` で重複 | sessions / lures | **DONE** [#48](https://github.com/satoru-oka/catch-management/issues/48): `backend/stats.py:is_missing_view_error` に抽出 |
 
 ---
 

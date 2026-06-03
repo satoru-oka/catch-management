@@ -1,4 +1,4 @@
-"""auth モジュールおよびルート (`/`) のテスト。"""
+"""auth モジュールおよび liveness ルートのテスト。"""
 
 from __future__ import annotations
 
@@ -134,6 +134,14 @@ def test_get_current_user_expired_token_raises_401(monkeypatch):
     assert exc.value.detail == "Invalid token"
 
 
+def test_get_current_user_without_credentials_raises_401():
+    with pytest.raises(HTTPException) as exc:
+        auth.get_current_user(None)
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Not authenticated"
+
+
 def test_get_supabase_attaches_user_token(monkeypatch):
     captured = {}
 
@@ -160,6 +168,14 @@ def test_get_supabase_attaches_user_token(monkeypatch):
     assert isinstance(client, FakeClient)
 
 
+def test_get_supabase_without_credentials_raises_401():
+    with pytest.raises(HTTPException) as exc:
+        auth.get_supabase(None)
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Not authenticated"
+
+
 def test_root_endpoint_returns_status_message():
     """`/` は認証不要なので素の TestClient で叩く。"""
     with TestClient(app) as c:
@@ -168,12 +184,20 @@ def test_root_endpoint_returns_status_message():
     assert res.json() == {"message": "釣果管理アプリ API 起動中"}
 
 
+def test_healthz_endpoint_returns_ok():
+    """`/healthz` は liveness check として認証不要で叩ける。"""
+    with TestClient(app) as c:
+        res = c.get("/healthz")
+    assert res.status_code == 200
+    assert res.json() == {"status": "ok"}
+
+
 def test_protected_endpoint_without_token_is_rejected():
-    """Authorization ヘッダ無しは HTTPBearer によりリクエストが拒否される。"""
+    """Authorization ヘッダ無しは 401 に統一する。"""
     with TestClient(app) as c:
         res = c.get("/api/spots/")
-    # FastAPI のバージョンによって 401/403 のどちらかが返る
-    assert res.status_code in (401, 403)
+    assert res.status_code == 401
+    assert res.json() == {"detail": "Not authenticated"}
 
 
 def test_postgrest_jwt_error_is_mapped_to_401(monkeypatch):

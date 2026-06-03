@@ -10,7 +10,15 @@ from supabase_client import (
     supabase,
 )
 
-security = HTTPBearer(auto_error=True)
+security = HTTPBearer(auto_error=False)
+
+
+def _require_credentials(
+    credentials: HTTPAuthorizationCredentials | None,
+) -> HTTPAuthorizationCredentials:
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return credentials
 
 
 def _verify_jwt_locally(token: str) -> str:
@@ -32,7 +40,10 @@ def _verify_jwt_locally(token: str) -> str:
     return user_id
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)) -> str:
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Security(security),
+) -> str:
+    credentials = _require_credentials(credentials)
     token = credentials.credentials
     if SUPABASE_JWT_SECRET:
         return _verify_jwt_locally(token)
@@ -50,8 +61,9 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
 
 
 def get_supabase(
-    credentials: HTTPAuthorizationCredentials = Security(security),
+    credentials: HTTPAuthorizationCredentials | None = Security(security),
 ) -> Client:
+    credentials = _require_credentials(credentials)
     # PostgRESTにユーザーJWTを渡すことで auth.uid() が解決され RLS が効く
     client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
     client.postgrest.auth(credentials.credentials)

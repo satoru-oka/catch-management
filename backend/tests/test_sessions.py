@@ -156,6 +156,27 @@ def test_monthly_stats_aggregates_by_month(client, fake_db):
     assert body["2026-04"] == {"session_count": 2, "catch_count": 1}
 
 
+def test_monthly_stats_falls_back_when_view_is_missing(client, fake_db):
+    fake_db.queue_error(RuntimeError('relation "user_monthly_session_stats" does not exist'))
+    fake_db.queue_result(
+        [
+            {"date": "2026-05-01", "catches": [{"id": "c1"}, {"id": "c2"}]},
+            {"date": "2026-05-15", "catches": []},
+            {"date": "2026-04-30", "catches": [{"id": "c3"}]},
+        ]
+    )
+
+    res = client.get("/api/sessions/stats/monthly")
+
+    assert res.status_code == 200
+    assert fake_db.calls[0]["table"] == "user_monthly_session_stats"
+    assert fake_db.calls[1]["table"] == "sessions"
+    assert res.json() == {
+        "2026-05": {"session_count": 2, "catch_count": 2},
+        "2026-04": {"session_count": 1, "catch_count": 1},
+    }
+
+
 def test_monthly_stats_empty(client, fake_db):
     fake_db.queue_result([])
 

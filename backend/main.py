@@ -59,3 +59,8 @@ app.include_router(spots.router)
 @app.get("/")
 def root():
     return {"message": "釣果管理アプリ API 起動中"}
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
