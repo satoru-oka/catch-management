@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
@@ -62,9 +63,47 @@ def test_get_current_user_no_user_raises_401(monkeypatch):
     assert exc.value.detail == "Invalid token"
 
 
-def test_get_current_user_supabase_error_raises_401(monkeypatch):
+def test_get_current_user_auth_service_http_error_raises_503(monkeypatch):
     def boom(_token):
-        raise RuntimeError("network down")
+        raise httpx.ConnectError("network down")
+
+    monkeypatch.setattr(
+        auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))
+    )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", None)
+
+    with pytest.raises(HTTPException) as exc:
+        auth.get_current_user(_creds())
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "Auth service unavailable"
+
+
+def test_get_current_user_auth_retryable_error_raises_503(monkeypatch):
+    class AuthRetryableError(Exception):
+        pass
+
+    def boom(_token):
+        raise AuthRetryableError("auth retryable")
+
+    monkeypatch.setattr(
+        auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))
+    )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", None)
+
+    with pytest.raises(HTTPException) as exc:
+        auth.get_current_user(_creds())
+
+    assert exc.value.status_code == 503
+    assert exc.value.detail == "Auth service unavailable"
+
+
+def test_get_current_user_auth_api_error_raises_401(monkeypatch):
+    class AuthApiError(Exception):
+        pass
+
+    def boom(_token):
+        raise AuthApiError("invalid jwt")
 
     monkeypatch.setattr(
         auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))
@@ -76,6 +115,22 @@ def test_get_current_user_supabase_error_raises_401(monkeypatch):
 
     assert exc.value.status_code == 401
     assert exc.value.detail == "Invalid token"
+
+
+def test_get_current_user_unexpected_error_raises_500(monkeypatch):
+    def boom(_token):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr(
+        auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))
+    )
+    monkeypatch.setattr(auth, "SUPABASE_JWT_SECRET", None)
+
+    with pytest.raises(HTTPException) as exc:
+        auth.get_current_user(_creds())
+
+    assert exc.value.status_code == 500
+    assert exc.value.detail == "Internal error"
 
 
 def test_get_current_user_verifies_jwt_locally(monkeypatch):
