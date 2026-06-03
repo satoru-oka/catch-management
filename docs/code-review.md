@@ -356,12 +356,49 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| RP-1 | 🟡 | リポジトリルートに未追跡 `c9bc9e20-1e36-4ed5-8d86-a2fec9e07361.png` (約 1.8MB)。レビュー添付の残骸と推定 | **DONE** [#37](https://github.com/satoru-oka/catch-management/issues/37): 現在の working tree に対象ファイルが存在しないことを確認 |
-| RP-2 | 🟢 | `docs/architecture.bakup.20260506.md` の typo (`bakup` → `backup`)。古い差分の保管が不要なら削除 | **DONE** [#37](https://github.com/satoru-oka/catch-management/issues/37): `bakup` / `backup` 版とも現存しないことを確認 |
+| RP-1 | 🟡 | リポジトリルートに未追跡 `c9bc9e20-1e36-4ed5-8d86-a2fec9e07361.png` (約 1.8MB)。レビュー添付の残骸と推定 | **DONE** [#37](https://github.com/satoru-oka/catch-management/issues/37): 現在の working tree に対象ファイルが存在しないことを確認 → 2026-06-03: 同 PNG が再配置されたが、`screenshot.png` に rename して README のヒーロー画像として commit したため、未追跡残骸としては解消済み |
+| RP-2 | 🟢 | `docs/architecture.bakup.20260506.md` の typo (`bakup` → `backup`)。古い差分の保管が不要なら削除 | **DONE** [#37](https://github.com/satoru-oka/catch-management/issues/37): `bakup` / `backup` 版とも現存しないことを確認 → 2026-06-03: ローカル backup が再発したため、削除はせず `.gitignore` で `docs/*.bakup.*.md` を一律無視。git history (`015531d`) に旧版が残っているので参照可能 |
 | RP-3 | 🟢 | `README.md` のクローン手順がプレースホルダ URL (`your-username/...`) | **DONE** [#12](https://github.com/satoru-oka/catch-management/issues/12): 実リポジトリ URL に置換済み |
 | RP-4 | 🟢 | `backend/CLAUDE.md` 不在。frontend 側には [CLAUDE.md](frontend/CLAUDE.md) (Next.js の注意書き) がある。ISSUE-001 の Python 3.14 PEP 649 シャドー問題を再発防止の 1 行として残すと良い | **DONE** [#37](https://github.com/satoru-oka/catch-management/issues/37): backend runtime / Pydantic / RLS 方針の note を追加 |
 | RP-5 | 🟢 | `docs/architecture.md` / `docs/code-review.md` のスナップショットが現状から遅れている | **DONE** [#52](https://github.com/satoru-oka/catch-management/issues/52): architecture の日付・branch・規模スナップショットを更新 |
 | R-1 | 🟡 | README がセットアップ中心で、概要 / 機能 / 技術スタック / docs 導線 / 今後の改善予定が弱い | **DONE** [#12](https://github.com/satoru-oka/catch-management/issues/12): onboarding 入口として構成済み、環境変数表と GitHub issues 導線を追加 |
+
+---
+
+## リファクタ batch (2026-06-03, PR #63 / #64)
+
+**分析日**: 2026-06-03
+**範囲**: `main` HEAD で重複・型不安全・命名マッチングを対象に 2 段階のリファクタを実施。既出 ID には影響しないが、横断項目として記録。
+
+### 抽出した共通モジュール
+
+| モジュール | 役割 | 解消した重複 |
+|---|---|---|
+| `backend/api_helpers.py` | `first_or_404` / `assert_found` | 4 router × 10 箇所の `if not result.data: raise HTTPException(404)` |
+| `backend/stats.py:view_with_fallback` | view→Python 集計の安全な切替 | `sessions.monthly_stats` と `lures.lure_stats` の try/except 重複 |
+| `frontend/lib/useResourceList.ts` | list+CRUD ページの hook | `spots/page.tsx` と `lures/page.tsx` の 100 行近い state/handler 重複 |
+| `frontend/lib/sessionFormConfig.ts` | session フォームの型と field 設定 | `sessions/new` と `sessions/[id]/edit` の `FormState` / `EMPTY` / `nullableFields` 重複 |
+| `frontend/lib/catchFormConfig.ts` | catch フォームの型と field 設定 | `catches/new` と `catches/[catchId]/edit` の同上 |
+| `frontend/lib/useFetchAllPages.ts` | picker 用の一括取得 hook | new ページ 2 箇所の `fetchAllPages + setState + catch fallback` useEffect |
+| `frontend/components/Form.tsx` | `FormInput` / `FormSelect` / `FormTextarea` | 6 ファイル 43 箇所の `<label>` + `<input className="w-full border ...">` の Tailwind class 文字列 |
+| `frontend/components/SessionForm.tsx` | session フォームの JSX | new と edit の 80 行 JSX 重複 (`mode='create'\|'edit'` で placeholder 差を吸収) |
+| `frontend/components/CatchForm.tsx` | catch フォームの JSX | new と edit の 90 行 JSX + lure 選択 picker 重複 |
+
+### 振る舞いベースの修正
+
+| # | 重要度 | 内容 | 状況 |
+|---|---|---|---|
+| Z-1 | 🟡 | 認証エラー判定が `exc.__class__.__name__ == "AuthApiError"` の文字列マッチ。supabase が型名を変えると静かに 500 に堕ちる | **DONE** PR #64: `supabase.AuthApiError` / `AuthRetryableError` を import し `isinstance` 分岐に変更。tests も実型を使うように更新 |
+| Z-2 | 🟡 | `buildFormPayload` の `nullableFields` / `numberFields` が `string[]` でタイポを検知できない | **DONE** PR #63: `BuildFormPayloadOptions<F>` をジェネリクスにし、`(keyof F & string)[]` に narrow。catches の field 配列は `as const` を付与 |
+| Z-3 | 🟢 | router の `model_dump` 呼び出しが create=内包表記 / `mode="json"` / `exclude_none` で 3 通りに割れていた | **DONE** PR #63: create は `model_dump(mode="json", exclude_none=True)`、update は `model_dump(mode="json", exclude_unset=True)` に統一 |
+
+### 調査のみで作業不要だった項目
+
+| # | 内容 | 結論 |
+|---|---|---|
+| Y-1 | `monthly_stats` フォールバックの日付フィルタが Python 側にあるという指摘 | PR #59 で既に `.gte("date", ...)` / `.lte("date", _month_end_iso(to_month))` が DB クエリに適用済みで、調査時の誤読 |
+| Y-2 | 401 ハンドリングの一本化 (FA-1 と同一) | PR #34 で `apiFetch` → イベント → `(protected)/layout.tsx` listener の構造に既に整理済み |
+| Y-3 | テストの `vi.mock` 共通化 | vitest の `vi.mock` がファイル単位で hoist されるため、共通化すると追跡が逆に難しくなる。データファクトリも事実上 1 ファイルでしか使わずメリット < 抽象化コスト |
 
 ---
 
