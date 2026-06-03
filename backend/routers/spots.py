@@ -25,7 +25,7 @@ class SpotUpdate(BaseModel):
 
 @router.get("/")
 def list_spots(db: Client = Depends(get_supabase)):
-    result = db.table("spots").select("*").execute()
+    result = db.table("spots").select("*").order("name").execute()
     return result.data
 
 

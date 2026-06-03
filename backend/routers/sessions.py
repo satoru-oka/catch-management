@@ -1,7 +1,8 @@
+import calendar
 import datetime as dt
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
@@ -61,23 +62,36 @@ def create_session(
 
 
 @router.get("/stats/monthly")
-def monthly_stats(db: Client = Depends(get_supabase)):
+def monthly_stats(
+    db: Client = Depends(get_supabase),
+    from_month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
+    to_month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
+):
+    from_month = _validate_month(from_month)
+    to_month = _validate_month(to_month)
+    if from_month and to_month and from_month > to_month:
+        raise HTTPException(status_code=422, detail="from_month must be before to_month")
+
     try:
-        result = (
-            db.table("user_monthly_session_stats")
-            .select("month, session_count, catch_count")
-            .execute()
+        query = db.table("user_monthly_session_stats").select(
+            "month, session_count, catch_count"
         )
+        if from_month:
+            query = query.gte("month", from_month)
+        if to_month:
+            query = query.lte("month", to_month)
+        result = query.execute()
         return _format_monthly_stats_rows(result.data)
     except Exception as e:
         if not is_missing_view_error(e, "user_monthly_session_stats"):
             raise
 
-    result = (
-        db.table("sessions")
-        .select("date, catches(id, length_cm, fish_species)")
-        .execute()
-    )
+    query = db.table("sessions").select("date, catches(id, length_cm, fish_species)")
+    if from_month:
+        query = query.gte("date", f"{from_month}-01")
+    if to_month:
+        query = query.lte("date", _month_end_iso(to_month))
+    result = query.execute()
     stats = {}
     for session in result.data:
         month = session["date"][:7]
@@ -97,6 +111,28 @@ def _format_monthly_stats_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str
         }
         for row in rows
     }
+
+
+def _validate_month(month: str | None) -> str | None:
+    if month is None:
+        return None
+    _month_parts(month)
+    return month
+
+
+def _month_parts(month: str) -> tuple[int, int]:
+    try:
+        year, month_number = (int(part) for part in month.split("-"))
+        dt.date(year, month_number, 1)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="month must be a valid YYYY-MM") from exc
+    return year, month_number
+
+
+def _month_end_iso(month: str) -> str:
+    year, month_number = _month_parts(month)
+    last_day = calendar.monthrange(year, month_number)[1]
+    return f"{month}-{last_day:02d}"
 
 
 @router.get("/{session_id}")

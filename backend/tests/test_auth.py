@@ -265,6 +265,9 @@ def test_postgrest_jwt_error_is_mapped_to_401(monkeypatch):
         def select(self, *_a, **_k):
             return self
 
+        def order(self, *_a, **_k):
+            return self
+
         def execute(self):
             raise PostgrestAPIError(
                 {
@@ -297,6 +300,9 @@ def test_postgrest_other_error_is_mapped_to_500():
 
     class _RaisingTable:
         def select(self, *_a, **_k):
+            return self
+
+        def order(self, *_a, **_k):
             return self
 
         def execute(self):

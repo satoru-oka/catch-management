@@ -63,6 +63,12 @@ class FakeQueryBuilder:
     def ilike(self, *a, **k):
         return self._record("ilike", *a, **k)
 
+    def gte(self, *a, **k):
+        return self._record("gte", *a, **k)
+
+    def lte(self, *a, **k):
+        return self._record("lte", *a, **k)
+
     def order(self, *a, **k):
         return self._record("order", *a, **k)
 

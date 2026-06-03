@@ -13,6 +13,8 @@ def test_list_spots_returns_data(client, fake_db):
     assert res.status_code == 200
     assert res.json() == [{"id": "s1", "name": "本流ポイント"}]
     assert fake_db.calls[0]["table"] == "spots"
+    ops = fake_db.calls[0]["ops"]
+    assert any(op[0] == "order" and op[1] == ("name",) for op in ops)
 
 
 def test_list_spots_empty(client, fake_db):

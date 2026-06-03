@@ -125,7 +125,7 @@
 | S-2 | 🟢 | `update_spot` は None を除外するため、フィールドを NULL にクリアできない | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): `exclude_unset=True` に変更し、明示 `null` は更新ペイロードに残す |
 | S-3 | ⚪ | line 1 が空行 (Ruff 整理の残骸)。意味なし | **DONE** [#32](https://github.com/satoru-oka/catch-management/issues/32): 先頭空行を削除 |
 | S-4 | 🟢 | `list_spot_sessions` にページング無し | **OPEN** (X-1 で扱う) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
-| S-5 | ⚪ | `list_spots` に並び順指定なし。フロントの追加順依存 | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): `.order("name")` 追加が自然 |
+| S-5 | ⚪ | `list_spots` に並び順指定なし。フロントの追加順依存 | **DONE** [#33](https://github.com/satoru-oka/catch-management/issues/33): `.order("name")` で安定化 |
 
 ---
 
@@ -149,7 +149,7 @@
 | SS-2 | 🟡 | `list_sessions` にページング無し | **OPEN** (X-1 で扱う) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
 | SS-3 | 🟢 | `update_session` は None を除外するためフィールドクリア不可 | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): `model_dump(mode="json", exclude_unset=True)` に変更し、明示 `null` は更新ペイロードに残す |
 | SS-4 | 🟢 | `if "date" in data: data["date"] = str(...)` を 3 フィールドで繰り返し。Pydantic v2 の `model_dump(mode="json")` で自動化可能 | **DONE** [#31](https://github.com/satoru-oka/catch-management/issues/31): `SessionCreate` / `SessionUpdate` を `model_dump(mode="json")` ベースに変更 |
-| SS-5 | 🟢 | `monthly_stats` が期間 (年月範囲) を絞らない。長期運用すると全月返す | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): クエリパラメータ追加で対応 |
+| SS-5 | 🟢 | `monthly_stats` が期間 (年月範囲) を絞らない。長期運用すると全月返す | **DONE** [#33](https://github.com/satoru-oka/catch-management/issues/33): `from_month` / `to_month` (`YYYY-MM`) を view/fallback 両方へ適用 |
 
 ---
 
@@ -173,7 +173,7 @@
 | C-2 | 🟡 | `lure_id` と `lure_name` / `lure_color` の denormalization で drift が起きる仕様の整理が未着手 | **DONE** [#17](https://github.com/satoru-oka/catch-management/issues/17): 履歴 snapshot として drift を許容する方針を architecture に明記 |
 | C-3 | 🟢 | `list_catches` にページング無し | **OPEN** (X-1) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
 | C-4 | 🟢 | `update_catch` でフィールドクリア不可 | **DONE**: `model_dump(mode="json", exclude_unset=True)` に変更し、明示 `null` は更新ペイロードに残す |
-| C-5 | 🟢 | `list_catches` のフィルタが `fish_species` / `lure_name` のみ。日付範囲・サイズ範囲もよくある検索軸 | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): ニーズが出たら追加 |
+| C-5 | 🟢 | `list_catches` のフィルタが `fish_species` / `lure_name` のみ。日付範囲・サイズ範囲もよくある検索軸 | **DONE** [#33](https://github.com/satoru-oka/catch-management/issues/33): `date_from/to`, `length_min/max`, `weight_min/max` を追加 |
 
 ---
 
@@ -196,7 +196,7 @@
 | L-1 | 🟡 | `lure_stats` が全行フェッチ → Python 集計 | **DONE** (SS-1) [#18](https://github.com/satoru-oka/catch-management/issues/18): `user_lure_stats` view を優先し、未作成環境では fallback |
 | L-2 | 🟡 | `lure_stats` が `lure_name` 文字列でグルーピング。lure を rename すると統計が分裂 | **WONTFIX** (C-2) [#17](https://github.com/satoru-oka/catch-management/issues/17): ルアー名は履歴 snapshot として扱うため、統計も当時名で集計 |
 | L-3 | 🟢 | `update_lure` でフィールドクリア不可 | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): `exclude_unset=True` に変更し、明示 `null` は更新ペイロードに残す |
-| L-4 | ⚪ | `list_lures` に並び替え指定パラメータ無し (常に name asc) | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): ニーズが出たら追加 |
+| L-4 | ⚪ | `list_lures` に並び替え指定パラメータ無し (常に name asc) | **DONE (仕様化)** [#33](https://github.com/satoru-oka/catch-management/issues/33): 現状は `name asc` 固定で安定表示。任意 sort は必要になったら別 issue |
 | L-6 | 🟢 | `lure_stats` fallback が未使用の `lure_color` を SELECT している | **DONE** [#49](https://github.com/satoru-oka/catch-management/issues/49): fallback select を `lure_name, length_cm` に縮小 |
 
 ---
@@ -223,7 +223,7 @@
 
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
-| C-6 | 🟢 | `list_catches` の `ilike("lure_name", f"%{lure_name}%")` ([catches.py:62](backend/routers/catches.py#L62)) が `%` / `_` をエスケープしていない。「100%」検索でワイルドカード扱いになる。supabase-py が SQL インジェクションは防ぐので脆弱性ではなく UX | **OPEN** [#33](https://github.com/satoru-oka/catch-management/issues/33): 入力を `.replace("%", r"\%").replace("_", r"\_")` で前処理 |
+| C-6 | 🟢 | `list_catches` の `ilike("lure_name", f"%{lure_name}%")` ([catches.py:62](backend/routers/catches.py#L62)) が `%` / `_` をエスケープしていない。「100%」検索でワイルドカード扱いになる。supabase-py が SQL インジェクションは防ぐので脆弱性ではなく UX | **DONE** [#33](https://github.com/satoru-oka/catch-management/issues/33): `%` / `_` / `\` を escape して literal 検索に寄せる |
 | L-5 | ⚪ | `routers/lures.py` 冒頭が空行 ([lures.py:1](backend/routers/lures.py#L1))。S-3 と同じ Ruff 整理残骸 | **DONE** [#32](https://github.com/satoru-oka/catch-management/issues/32): 先頭空行を削除 |
 | X-4 | 🟡 | RLS 一元依存だが、**クロステナント GET スモークテスト** が無い。RLS が事故で外れると anon key 経由で他人のデータが見える | **OPEN** [#24](https://github.com/satoru-oka/catch-management/issues/24): `tests/integration/test_rls.py` で user A/B fixture を立て、spots / sessions / catches / lures の 4 テーブルに対し「B のトークンで A のレコード ID を select.eq → 空配列」を assert |
 | X-5 | 🟢 | `create_*` のみ `get_current_user` 依存、`update_*` / `delete_*` は依存無し (RLS 任せ) の **非対称**。読み手が「create だけユーザー必須」と誤読する余地 | **DONE** [#27](https://github.com/satoru-oka/catch-management/issues/27): mutate 系は全て `get_current_user` 依存を持つ形に統一 |
