@@ -79,11 +79,14 @@ class FakeSupabase:
     """
 
     def __init__(self):
-        self._results: list[FakeResult] = []
+        self._results: list[FakeResult | Exception] = []
         self.calls: list[dict] = []
 
     def queue_result(self, data: Any) -> None:
         self._results.append(FakeResult(data))
+
+    def queue_error(self, exc: Exception) -> None:
+        self._results.append(exc)
 
     def table(self, name: str) -> FakeQueryBuilder:
         return FakeQueryBuilder(self, name)
@@ -91,7 +94,10 @@ class FakeSupabase:
     def _consume_result(self) -> FakeResult:
         if not self._results:
             return FakeResult([])
-        return self._results.pop(0)
+        result = self._results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
 
 
 @pytest.fixture

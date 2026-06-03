@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from supabase import Client
 
 from auth import get_current_user, get_supabase
+from stats import is_missing_view_error
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -69,7 +70,7 @@ def monthly_stats(db: Client = Depends(get_supabase)):
         )
         return _format_monthly_stats_rows(result.data)
     except Exception as e:
-        if not _is_missing_stats_view_error(e):
+        if not is_missing_view_error(e, "user_monthly_session_stats"):
             raise
 
     result = (
@@ -96,17 +97,6 @@ def _format_monthly_stats_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str
         }
         for row in rows
     }
-
-
-def _is_missing_stats_view_error(exc: Exception) -> bool:
-    code = getattr(exc, "code", None)
-    if code is None and exc.args and isinstance(exc.args[0], dict):
-        code = exc.args[0].get("code")
-    message = str(exc).lower()
-    return code in {"42P01", "PGRST205"} or (
-        "user_monthly_session_stats" in message
-        and ("does not exist" in message or "could not find" in message)
-    )
 
 
 @router.get("/{session_id}")

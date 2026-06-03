@@ -146,6 +146,29 @@ def test_lure_stats_avg_length_zero_when_no_lengths(client, fake_db):
     assert res.json()["ジグ"] == {"count": 1, "avg_length": 0}
 
 
+def test_lure_stats_falls_back_without_lure_color_select(client, fake_db):
+    fake_db.queue_error(RuntimeError("Could not find the table user_lure_stats in schema cache"))
+    fake_db.queue_result(
+        [
+            {"lure_name": "ミノー", "length_cm": 20},
+            {"lure_name": "ミノー", "length_cm": 30},
+            {"lure_name": None, "length_cm": None},
+        ]
+    )
+
+    res = client.get("/api/lures/stats")
+
+    assert res.status_code == 200
+    assert fake_db.calls[0]["table"] == "user_lure_stats"
+    assert fake_db.calls[1]["table"] == "catches"
+    fallback_select = next(op for op in fake_db.calls[1]["ops"] if op[0] == "select")
+    assert fallback_select[1] == ("lure_name, length_cm",)
+    assert res.json() == {
+        "ミノー": {"count": 2, "avg_length": 25.0},
+        "不明": {"count": 1, "avg_length": 0},
+    }
+
+
 def test_lure_stats_empty(client, fake_db):
     fake_db.queue_result([])
 
