@@ -1,3 +1,6 @@
+import logging
+
+import httpx
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
@@ -10,6 +13,7 @@ from supabase_client import (
     supabase,
 )
 
+logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
 
 
@@ -40,6 +44,18 @@ def _verify_jwt_locally(token: str) -> str:
     return user_id
 
 
+def _is_named_error(exc: Exception, name: str) -> bool:
+    return exc.__class__.__name__ == name
+
+
+def _is_auth_service_unavailable_error(exc: Exception) -> bool:
+    return isinstance(exc, httpx.HTTPError) or _is_named_error(exc, "AuthRetryableError")
+
+
+def _is_invalid_token_error(exc: Exception) -> bool:
+    return _is_named_error(exc, "AuthApiError")
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Security(security),
 ) -> str:
@@ -56,8 +72,12 @@ def get_current_user(
     except HTTPException:
         raise
     except Exception as e:
-        # 元の例外はサーバ側ログにチェーン保持しつつ、レスポンスは「Invalid token」固定
-        raise HTTPException(status_code=401, detail="Invalid token") from e
+        if _is_auth_service_unavailable_error(e):
+            raise HTTPException(status_code=503, detail="Auth service unavailable") from e
+        if _is_invalid_token_error(e):
+            raise HTTPException(status_code=401, detail="Invalid token") from e
+        logger.exception("Unexpected error during JWT verification")
+        raise HTTPException(status_code=500, detail="Internal error") from e
 
 
 def get_supabase(

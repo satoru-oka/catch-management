@@ -118,6 +118,27 @@ describe('apiFetch', () => {
     })
   })
 
+  it('503 では認証切れイベントを通知しない', async () => {
+    getSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } })
+    mockFetch({
+      ok: false,
+      status: 503,
+      jsonBody: { detail: 'Auth service unavailable' },
+    })
+    const unauthorized = vi.fn()
+    window.addEventListener('auth:unauthorized', unauthorized)
+
+    try {
+      await expect(apiFetch('/api/spots/')).rejects.toMatchObject({
+        status: 503,
+        detail: 'Auth service unavailable',
+      })
+      expect(unauthorized).not.toHaveBeenCalled()
+    } finally {
+      window.removeEventListener('auth:unauthorized', unauthorized)
+    }
+  })
+
   it('エラーレスポンスの body が JSON でなくてもクラッシュしない', async () => {
     getSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } })
     vi.stubGlobal(

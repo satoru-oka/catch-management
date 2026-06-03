@@ -99,7 +99,7 @@
 | A-1 | 🟡 | `get_current_user` で毎リクエスト Supabase Auth API に外部コール (~50-200ms)。POST 系の体感に効き、Supabase Auth が単一障害点 | **DONE** [#13](https://github.com/satoru-oka/catch-management/issues/13): `SUPABASE_JWT_SECRET` 設定時は `python-jose` でローカル検証。未設定環境は互換 fallback |
 | A-2 | 🟡 | `get_supabase` がリクエスト毎に `create_client` を呼び、httpx 接続プールが生きない | **WONTFIX** [#14](https://github.com/satoru-oka/catch-management/issues/14): 共有 mutable client は JWT 混入リスクが高いため採用せず、`scripts/benchmark_supabase_client.py --iterations 1000` で約 20.17ms/回 |
 | A-3 | 🟢 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` の型 narrowing が弱い | **DUPE**: D-2 で扱い済み |
-| A-4 | 🟢 | broad な `except Exception` で Supabase Auth 障害も `Invalid token` 401 にマップされる。フロントが自動ログアウトする | **OPEN** [#15](https://github.com/satoru-oka/catch-management/issues/15): `AuthRetryableError` を 503 にマップ。A-1 で自前検証化すれば不要 |
+| A-4 | 🟢 | broad な `except Exception` で Supabase Auth 障害も `Invalid token` 401 にマップされる。フロントが自動ログアウトする | **DONE** [#15](https://github.com/satoru-oka/catch-management/issues/15): fallback 検証時も auth service 障害は 503、invalid token は 401、未知例外は 500 に分類 |
 | A-5 | ⚪ | `HTTPBearer()` の `auto_error` を明示していない | **DONE** [#30](https://github.com/satoru-oka/catch-management/issues/30): `auto_error` を明示し、未認証レスポンスは A-6 で 401 に統一 |
 | A-6 | 🟢 | Authorization ヘッダ無しが FastAPI 既定の 403 になり、未認証 = 401 の API 仕様とずれる | **DONE** [#51](https://github.com/satoru-oka/catch-management/issues/51): `HTTPBearer(auto_error=False)` + 明示 `401 Not authenticated` |
 
