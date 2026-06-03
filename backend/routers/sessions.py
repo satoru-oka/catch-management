@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
+from api_helpers import assert_found, first_or_404
 from auth import get_current_user, get_supabase
 from stats import is_missing_view_error
 
@@ -148,9 +149,7 @@ def get_session(session_id: str, db: Client = Depends(get_supabase)):
         .eq("id", session_id)
         .execute()
     )
-    if not result.data:
-        raise HTTPException(status_code=404, detail="釣行が見つかりません")
-    return result.data[0]
+    return first_or_404(result.data, "釣行が見つかりません")
 
 
 @router.put("/{session_id}")
@@ -162,9 +161,7 @@ def update_session(
 ):
     data = session.model_dump(mode="json", exclude_unset=True)
     result = db.table("sessions").update(data).eq("id", session_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="釣行が見つかりません")
-    return result.data[0]
+    return first_or_404(result.data, "釣行が見つかりません")
 
 
 @router.delete("/{session_id}")
@@ -174,6 +171,5 @@ def delete_session(
     _user_id: str = Depends(get_current_user),
 ):
     result = db.table("sessions").delete().eq("id", session_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="釣行が見つかりません")
+    assert_found(result.data, "釣行が見つかりません")
     return {"message": "削除しました"}

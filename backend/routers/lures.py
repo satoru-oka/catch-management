@@ -1,9 +1,10 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from supabase import Client
 
+from api_helpers import assert_found, first_or_404
 from auth import get_current_user, get_supabase
 from stats import is_missing_view_error
 
@@ -65,9 +66,7 @@ def update_lure(
 ):
     data = lure.model_dump(exclude_unset=True)
     result = db.table("lures").update(data).eq("id", lure_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="ルアーが見つかりません")
-    return result.data[0]
+    return first_or_404(result.data, "ルアーが見つかりません")
 
 
 @router.delete("/{lure_id}")
@@ -77,8 +76,7 @@ def delete_lure(
     _user_id: str = Depends(get_current_user),
 ):
     result = db.table("lures").delete().eq("id", lure_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="ルアーが見つかりません")
+    assert_found(result.data, "ルアーが見つかりません")
     return {"message": "削除しました"}
 
 
