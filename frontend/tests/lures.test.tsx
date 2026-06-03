@@ -49,6 +49,26 @@ describe('LuresPage', () => {
     expect(await screen.findByText('Dコンタクト63')).toBeInTheDocument()
   })
 
+  it('50 件取得した場合はもっと読み込むボタンで次ページを追加する', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, i) => ({
+      ...baseLure,
+      id: `l${i}`,
+      name: `ルアー${i}`,
+    }))
+    apiFetch.mockResolvedValueOnce(firstPage)
+    apiFetch.mockResolvedValueOnce([{ ...baseLure, id: 'l51', name: '追加ルアー' }])
+    render(<LuresPage />)
+    await screen.findByText('ルアー0')
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'もっと読み込む' }))
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenLastCalledWith('/api/lures?limit=50&offset=50')
+    })
+    expect(await screen.findByText('追加ルアー')).toBeInTheDocument()
+  })
+
   it('空配列なら "ルアーがまだありません" が出る', async () => {
     apiFetch.mockResolvedValueOnce([])
     render(<LuresPage />)

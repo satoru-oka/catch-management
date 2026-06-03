@@ -72,6 +72,9 @@ class FakeQueryBuilder:
     def order(self, *a, **k):
         return self._record("order", *a, **k)
 
+    def range(self, *a, **k):
+        return self._record("range", *a, **k)
+
     def execute(self) -> FakeResult:
         self._db.calls.append({"table": self._table, "ops": self._ops})
         return self._db._consume_result()

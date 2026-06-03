@@ -1,6 +1,6 @@
 import datetime as dt
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
@@ -82,6 +82,8 @@ def list_catches(
     length_max: float | None = None,
     weight_min: float | None = None,
     weight_max: float | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
 ):
     query = db.table("catches").select("*, sessions(date, spot_id)")
     if fish_species:
@@ -100,7 +102,7 @@ def list_catches(
         query = query.gte("weight_g", weight_min)
     if weight_max is not None:
         query = query.lte("weight_g", weight_max)
-    result = query.order("created_at", desc=True).execute()
+    result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
     return result.data
 
 

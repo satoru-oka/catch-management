@@ -49,6 +49,26 @@ describe('SpotsPage', () => {
     expect(screen.getByText('球磨川')).toBeInTheDocument()
   })
 
+  it('50 件取得した場合はもっと読み込むボタンで次ページを追加する', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, i) => ({
+      ...baseSpot,
+      id: `sp${i}`,
+      name: `ポイント${i}`,
+    }))
+    apiFetch.mockResolvedValueOnce(firstPage)
+    apiFetch.mockResolvedValueOnce([{ ...baseSpot, id: 'sp51', name: '追加ポイント' }])
+    render(<SpotsPage />)
+    await screen.findByText('ポイント0')
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'もっと読み込む' }))
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenLastCalledWith('/api/spots?limit=50&offset=50')
+    })
+    expect(await screen.findByText('追加ポイント')).toBeInTheDocument()
+  })
+
   it('空配列なら "ポイントがまだありません" が出る', async () => {
     apiFetch.mockResolvedValueOnce([])
     render(<SpotsPage />)

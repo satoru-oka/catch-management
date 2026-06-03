@@ -90,8 +90,8 @@ describe('HomePage', () => {
     expect(screen.getByText(/球磨川/)).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(apiFetch).toHaveBeenNthCalledWith(1, '/api/catches')
-      expect(apiFetch).toHaveBeenNthCalledWith(2, '/api/sessions')
+      expect(apiFetch).toHaveBeenNthCalledWith(1, '/api/catches?limit=200&offset=0')
+      expect(apiFetch).toHaveBeenNthCalledWith(2, '/api/sessions?limit=200&offset=0')
       expect(getUser).toHaveBeenCalled()
     })
   })

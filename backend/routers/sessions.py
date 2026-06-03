@@ -39,11 +39,16 @@ class SessionUpdate(BaseModel):
 
 
 @router.get("/")
-def list_sessions(db: Client = Depends(get_supabase)):
+def list_sessions(
+    db: Client = Depends(get_supabase),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
     result = (
         db.table("sessions")
         .select("*, spots(name, river_name)")
         .order("date", desc=True)
+        .range(offset, offset + limit - 1)
         .execute()
     )
     return result.data

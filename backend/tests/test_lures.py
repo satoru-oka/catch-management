@@ -14,6 +14,23 @@ def test_list_lures(client, fake_db):
     assert res.json()[0]["name"] == "ミノー"
     ops = fake_db.calls[0]["ops"]
     assert any(op[0] == "order" and op[1] == ("name",) for op in ops)
+    assert ("range", (0, 49), {}) in ops
+
+
+def test_list_lures_applies_limit_offset(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.get("/api/lures/?limit=30&offset=60")
+
+    assert res.status_code == 200
+    ops = fake_db.calls[0]["ops"]
+    assert ("range", (60, 89), {}) in ops
+
+
+def test_list_lures_rejects_limit_over_max(client):
+    res = client.get("/api/lures/?limit=201")
+
+    assert res.status_code == 422
 
 
 def test_create_lure_assigns_user_id(client, fake_db):

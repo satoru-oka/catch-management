@@ -35,7 +35,7 @@ describe('NewSessionPage', () => {
     render(<NewSessionPage />)
 
     await waitFor(() => {
-      expect(apiFetch).toHaveBeenCalledWith('/api/spots')
+      expect(apiFetch).toHaveBeenCalledWith('/api/spots?limit=200&offset=0')
     })
     // セレクトオプションに反映されることまで確認
     expect(await screen.findByRole('option', { name: '球磨川 / 本流ポイント' })).toBeInTheDocument()

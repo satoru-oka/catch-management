@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
 import { tokyoDateIso } from '@/lib/date'
 import { buildFormPayload } from '@/lib/formPayload'
+import { fetchAllPages } from '@/lib/pagination'
 import type { Spot, Session } from '@/lib/types'
 
 type FormState = {
@@ -35,7 +36,9 @@ export default function NewSessionPage() {
   })
 
   useEffect(() => {
-    apiFetch<Spot[]>('/api/spots').then(setSpots).catch(() => setSpots([]))
+    fetchAllPages<Spot>('/api/spots', (path) => apiFetch<Spot[]>(path))
+      .then(setSpots)
+      .catch(() => setSpots([]))
   }, [])
 
   const handleChange = (
