@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { FormInput, FormTextarea } from '@/components/Form'
 import { FullScreenSpinner } from '@/lib/Loading'
 import type { Spot } from '@/lib/types'
 import { useResourceList } from '@/lib/useResourceList'
@@ -78,38 +79,13 @@ export default function SpotsPage() {
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="font-bold text-gray-700">{editingId ? '編集' : '新規追加'}</h2>
-            <div>
-              <label htmlFor="spot-form-name" className="block text-sm font-medium text-gray-700 mb-1">ポイント名 *</label>
-              <input type="text" id="spot-form-name" name="name" value={form.name} onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="上流の淵" required />
-            </div>
-            <div>
-              <label htmlFor="spot-form-river_name" className="block text-sm font-medium text-gray-700 mb-1">川の名前</label>
-              <input type="text" id="spot-form-river_name" name="river_name" value={form.river_name} onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="○○川" />
-            </div>
+            <FormInput label="ポイント名" name="name" type="text" value={form.name} onChange={handleChange} placeholder="上流の淵" required />
+            <FormInput label="川の名前" name="river_name" type="text" value={form.river_name} onChange={handleChange} placeholder="○○川" />
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="spot-form-latitude" className="block text-sm font-medium text-gray-700 mb-1">緯度</label>
-                <input type="number" id="spot-form-latitude" name="latitude" value={form.latitude} onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="35.681" step="any" />
-              </div>
-              <div>
-                <label htmlFor="spot-form-longitude" className="block text-sm font-medium text-gray-700 mb-1">経度</label>
-                <input type="number" id="spot-form-longitude" name="longitude" value={form.longitude} onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="139.767" step="any" />
-              </div>
+              <FormInput label="緯度" name="latitude" type="number" value={form.latitude} onChange={handleChange} placeholder="35.681" step="any" />
+              <FormInput label="経度" name="longitude" type="number" value={form.longitude} onChange={handleChange} placeholder="139.767" step="any" />
             </div>
-            <div>
-              <label htmlFor="spot-form-notes" className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
-              <textarea id="spot-form-notes" name="notes" value={form.notes} onChange={handleChange} rows={2}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="ポイントの特徴など..." />
-            </div>
+            <FormTextarea label="メモ" name="notes" value={form.notes} onChange={handleChange} rows={2} placeholder="ポイントの特徴など..." />
             <button type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg text-sm">
               保存
