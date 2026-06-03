@@ -18,7 +18,7 @@ type FormState = {
   notes: string
 }
 
-const numberFields = ['length_cm', 'weight_g']
+const numberFields = ['length_cm', 'weight_g'] as const
 
 export default function NewCatchPage() {
   const router = useRouter()

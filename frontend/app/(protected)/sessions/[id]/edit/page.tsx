@@ -6,39 +6,12 @@ import { apiFetch, ApiError } from '@/lib/api'
 import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
 import { fetchAllPages } from '@/lib/pagination'
+import {
+  EMPTY_SESSION_FORM,
+  SESSION_NULLABLE_FIELDS,
+  type SessionFormState,
+} from '@/lib/sessionFormConfig'
 import type { SessionDetail, Spot } from '@/lib/types'
-
-type FormState = {
-  spot_id: string
-  date: string
-  start_time: string
-  end_time: string
-  water_level: string
-  water_clarity: string
-  weather: string
-  notes: string
-}
-
-const empty: FormState = {
-  spot_id: '',
-  date: '',
-  start_time: '',
-  end_time: '',
-  water_level: '',
-  water_clarity: '',
-  weather: '',
-  notes: '',
-}
-
-const nullableFields = [
-  'spot_id',
-  'start_time',
-  'end_time',
-  'water_level',
-  'water_clarity',
-  'weather',
-  'notes',
-]
 
 export default function EditSessionPage() {
   const router = useRouter()
@@ -48,7 +21,7 @@ export default function EditSessionPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [spots, setSpots] = useState<Spot[]>([])
-  const [form, setForm] = useState<FormState>(empty)
+  const [form, setForm] = useState<SessionFormState>(EMPTY_SESSION_FORM)
 
   useEffect(() => {
     Promise.all([
@@ -84,7 +57,7 @@ export default function EditSessionPage() {
     e.preventDefault()
     setSubmitting(true)
     setError(null)
-    const payload = buildFormPayload(form, { nullableFields })
+    const payload = buildFormPayload(form, { nullableFields: SESSION_NULLABLE_FIELDS })
     try {
       await apiFetch(`/api/sessions/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
       router.push(`/sessions/${id}`)
