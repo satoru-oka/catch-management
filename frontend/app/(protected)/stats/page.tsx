@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { apiFetch, ApiError } from '@/lib/api'
 import { FullScreenSpinner } from '@/lib/Loading'
+import { fetchAllPages } from '@/lib/pagination'
 import type { Catch, MonthlyStats, LureStats } from '@/lib/types'
 
 // recharts はバンドルが大きいのでチャート部分のみ遅延ロード
@@ -33,7 +34,7 @@ export default function StatsPage() {
     Promise.all([
       apiFetch<MonthlyStats>('/api/sessions/stats/monthly'),
       apiFetch<LureStats>('/api/lures/stats'),
-      apiFetch<Catch[]>('/api/catches'),
+      fetchAllPages<Catch>('/api/catches', (path) => apiFetch<Catch[]>(path)),
     ])
       .then(([monthlyData, lureData, catchData]) => {
         const monthlyArray: MonthlyRow[] = Object.entries(monthlyData)

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
 import { buildFormPayload } from '@/lib/formPayload'
+import { fetchAllPages } from '@/lib/pagination'
 import type { Lure, Catch } from '@/lib/types'
 
 type FormState = {
@@ -38,7 +39,9 @@ export default function NewCatchPage() {
   })
 
   useEffect(() => {
-    apiFetch<Lure[]>('/api/lures').then(setLures).catch(() => setLures([]))
+    fetchAllPages<Lure>('/api/lures', (path) => apiFetch<Lure[]>(path))
+      .then(setLures)
+      .catch(() => setLures([]))
   }, [])
 
   const handleChange = (

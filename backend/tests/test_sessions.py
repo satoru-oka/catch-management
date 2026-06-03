@@ -14,6 +14,23 @@ def test_list_sessions(client, fake_db):
     assert res.json()[0]["id"] == "ses1"
     ops = fake_db.calls[0]["ops"]
     assert any(op[0] == "order" and op[1] == ("date",) and op[2] == {"desc": True} for op in ops)
+    assert ("range", (0, 49), {}) in ops
+
+
+def test_list_sessions_applies_limit_offset(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.get("/api/sessions/?limit=20&offset=40")
+
+    assert res.status_code == 200
+    ops = fake_db.calls[0]["ops"]
+    assert ("range", (40, 59), {}) in ops
+
+
+def test_list_sessions_rejects_limit_over_max(client):
+    res = client.get("/api/sessions/?limit=201")
+
+    assert res.status_code == 422
 
 
 def test_create_session_normalizes_date_and_time(client, fake_db):

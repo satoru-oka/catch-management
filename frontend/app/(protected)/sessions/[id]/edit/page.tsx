@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
 import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
+import { fetchAllPages } from '@/lib/pagination'
 import type { SessionDetail, Spot } from '@/lib/types'
 
 type FormState = {
@@ -52,7 +53,9 @@ export default function EditSessionPage() {
   useEffect(() => {
     Promise.all([
       apiFetch<SessionDetail>(`/api/sessions/${id}`),
-      apiFetch<Spot[]>('/api/spots').catch(() => [] as Spot[]),
+      fetchAllPages<Spot>('/api/spots', (path) => apiFetch<Spot[]>(path)).catch(
+        () => [] as Spot[],
+      ),
     ])
       .then(([s, sp]) => {
         setSpots(sp)

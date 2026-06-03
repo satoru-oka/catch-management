@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { apiFetch, ApiError } from '@/lib/api'
 import { tokyoDateIso } from '@/lib/date'
+import { fetchAllPages } from '@/lib/pagination'
 import { extractProfile, profileInitial, type Profile } from '@/lib/profile'
 import { FullScreenSpinner } from '@/lib/Loading'
 import type { Catch, SessionWithSpot } from '@/lib/types'
@@ -39,8 +40,12 @@ export default function HomePage() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch<CatchWithSession[]>('/api/catches'),
-      apiFetch<SessionWithSpot[]>('/api/sessions'),
+      fetchAllPages<CatchWithSession>('/api/catches', (path) =>
+        apiFetch<CatchWithSession[]>(path),
+      ),
+      fetchAllPages<SessionWithSpot>('/api/sessions', (path) =>
+        apiFetch<SessionWithSpot[]>(path),
+      ),
       createClient().auth.getUser(),
     ])
       .then(([c, s, { data }]) => {

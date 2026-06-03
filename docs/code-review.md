@@ -124,7 +124,7 @@
 | S-1 | 🟢 | `create_spot` のみ `model_dump()` で None を含めて INSERT。他 router と挙動が違う | **DONE** (X-3) [#21](https://github.com/satoru-oka/catch-management/issues/21): `None` フィールドを除外 |
 | S-2 | 🟢 | `update_spot` は None を除外するため、フィールドを NULL にクリアできない | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): `exclude_unset=True` に変更し、明示 `null` は更新ペイロードに残す |
 | S-3 | ⚪ | line 1 が空行 (Ruff 整理の残骸)。意味なし | **DONE** [#32](https://github.com/satoru-oka/catch-management/issues/32): 先頭空行を削除 |
-| S-4 | 🟢 | `list_spot_sessions` にページング無し | **OPEN** (X-1 で扱う) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
+| S-4 | 🟢 | `list_spot_sessions` にページング無し | **DONE** (X-1) [#19](https://github.com/satoru-oka/catch-management/issues/19): `limit` / `offset` と上限 200 を追加 |
 | S-5 | ⚪ | `list_spots` に並び順指定なし。フロントの追加順依存 | **DONE** [#33](https://github.com/satoru-oka/catch-management/issues/33): `.order("name")` で安定化 |
 
 ---
@@ -146,7 +146,7 @@
 | # | 重要度 | 内容 | 状況 |
 |---|---|---|---|
 | SS-1 | 🟡 | `monthly_stats` が全行フェッチ → Python 集計。データ増加で線形劣化 | **DONE** [#18](https://github.com/satoru-oka/catch-management/issues/18): `user_monthly_session_stats` view を優先し、未作成環境では fallback |
-| SS-2 | 🟡 | `list_sessions` にページング無し | **OPEN** (X-1 で扱う) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
+| SS-2 | 🟡 | `list_sessions` にページング無し | **DONE** (X-1) [#19](https://github.com/satoru-oka/catch-management/issues/19): `limit` / `offset` と上限 200 を追加 |
 | SS-3 | 🟢 | `update_session` は None を除外するためフィールドクリア不可 | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): `model_dump(mode="json", exclude_unset=True)` に変更し、明示 `null` は更新ペイロードに残す |
 | SS-4 | 🟢 | `if "date" in data: data["date"] = str(...)` を 3 フィールドで繰り返し。Pydantic v2 の `model_dump(mode="json")` で自動化可能 | **DONE** [#31](https://github.com/satoru-oka/catch-management/issues/31): `SessionCreate` / `SessionUpdate` を `model_dump(mode="json")` ベースに変更 |
 | SS-5 | 🟢 | `monthly_stats` が期間 (年月範囲) を絞らない。長期運用すると全月返す | **DONE** [#33](https://github.com/satoru-oka/catch-management/issues/33): `from_month` / `to_month` (`YYYY-MM`) を view/fallback 両方へ適用 |
@@ -171,7 +171,7 @@
 |---|---|---|---|
 | C-1 | 🟡 | `lure_id` の所有者検証が無く、他人の lure_id を参照する catch を挿入できる可能性 (FK は通る) | **DONE** [#16](https://github.com/satoru-oka/catch-management/issues/16): `create_catch` / `update_catch` で RLS 越しに `lures` を確認し、見えない `lure_id` は 400 |
 | C-2 | 🟡 | `lure_id` と `lure_name` / `lure_color` の denormalization で drift が起きる仕様の整理が未着手 | **DONE** [#17](https://github.com/satoru-oka/catch-management/issues/17): 履歴 snapshot として drift を許容する方針を architecture に明記 |
-| C-3 | 🟢 | `list_catches` にページング無し | **OPEN** (X-1) [#19](https://github.com/satoru-oka/catch-management/issues/19) |
+| C-3 | 🟢 | `list_catches` にページング無し | **DONE** (X-1) [#19](https://github.com/satoru-oka/catch-management/issues/19): `limit` / `offset` と上限 200 を追加 |
 | C-4 | 🟢 | `update_catch` でフィールドクリア不可 | **DONE**: `model_dump(mode="json", exclude_unset=True)` に変更し、明示 `null` は更新ペイロードに残す |
 | C-5 | 🟢 | `list_catches` のフィルタが `fish_species` / `lure_name` のみ。日付範囲・サイズ範囲もよくある検索軸 | **DONE** [#33](https://github.com/satoru-oka/catch-management/issues/33): `date_from/to`, `length_min/max`, `weight_min/max` を追加 |
 
@@ -207,7 +207,7 @@
 
 | # | 重要度 | 内容 | 影響範囲 | 状況 |
 |---|---|---|---|---|
-| X-1 | 🟡 | list 系エンドポイントに **ページング無し** | spots / sessions / catches / lures (5 endpoint) | **OPEN** [#19](https://github.com/satoru-oka/catch-management/issues/19) |
+| X-1 | 🟡 | list 系エンドポイントに **ページング無し** | spots / sessions / catches / lures (5 endpoint) | **DONE** [#19](https://github.com/satoru-oka/catch-management/issues/19): 全 list endpoint に `limit` / `offset` (default 50, max 200) を追加し、frontend は全ページ取得 helper と spots/lures の「もっと読み込む」で対応 |
 | X-2 | 🟡 | PUT で `if v is not None` フィルタにより **NULL クリア不可** | spots / sessions / catches / lures (4 endpoint) | **DONE** [#20](https://github.com/satoru-oka/catch-management/issues/20): 全 PUT を `exclude_unset=True` ベースにして、未指定と明示 `null` を区別 |
 | X-3 | 🟢 | INSERT の None 扱いが [spots.py:39](backend/routers/spots.py#L39) のみ非対称 | spots vs others | **DONE** [#21](https://github.com/satoru-oka/catch-management/issues/21): `create_spot` も optional `None` を除外 |
 | X-6 | 🟡 | stats view fallback の欠落判定 helper が `sessions.py` / `lures.py` で重複 | sessions / lures | **DONE** [#48](https://github.com/satoru-oka/catch-management/issues/48): `backend/stats.py:is_missing_view_error` に抽出 |

@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { apiFetch, ApiError } from '@/lib/api'
 import { buildFormPayload } from '@/lib/formPayload'
 import { FullScreenSpinner } from '@/lib/Loading'
+import { fetchAllPages } from '@/lib/pagination'
 import type { Catch, Lure } from '@/lib/types'
 
 type FormState = {
@@ -46,7 +47,9 @@ export default function EditCatchPage() {
   useEffect(() => {
     Promise.all([
       apiFetch<Catch>(`/api/catches/${catchId}`),
-      apiFetch<Lure[]>('/api/lures').catch(() => [] as Lure[]),
+      fetchAllPages<Lure>('/api/lures', (path) => apiFetch<Lure[]>(path)).catch(
+        () => [] as Lure[],
+      ),
     ])
       .then(([c, ls]) => {
         setLures(ls)

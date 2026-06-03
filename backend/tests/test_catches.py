@@ -102,6 +102,23 @@ def test_list_catches_no_filters(client, fake_db):
     # フィルタ未指定なら eq/ilike は呼ばれない
     assert not any(op[0] in ("eq", "ilike") for op in ops)
     assert any(op[0] == "order" and op[1] == ("created_at",) for op in ops)
+    assert ("range", (0, 49), {}) in ops
+
+
+def test_list_catches_applies_limit_offset(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.get("/api/catches?limit=15&offset=30")
+
+    assert res.status_code == 200
+    ops = fake_db.calls[0]["ops"]
+    assert ("range", (30, 44), {}) in ops
+
+
+def test_list_catches_rejects_limit_over_max(client):
+    res = client.get("/api/catches?limit=201")
+
+    assert res.status_code == 422
 
 
 def test_list_catches_with_fish_species_filter(client, fake_db):

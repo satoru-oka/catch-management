@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
@@ -29,8 +29,18 @@ class LureUpdate(BaseModel):
 
 
 @router.get("/")
-def list_lures(db: Client = Depends(get_supabase)):
-    result = db.table("lures").select("*").order("name").execute()
+def list_lures(
+    db: Client = Depends(get_supabase),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    result = (
+        db.table("lures")
+        .select("*")
+        .order("name")
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
     return result.data
 
 
