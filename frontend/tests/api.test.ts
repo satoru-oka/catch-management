@@ -12,7 +12,7 @@ vi.mock('@/lib/supabase', () => ({
   }),
 }))
 
-import { ApiError, apiFetch, UNAUTHORIZED_EVENT } from '@/lib/api'
+import { ApiError, apiFetch, getRequiredApiUrl, UNAUTHORIZED_EVENT } from '@/lib/api'
 
 beforeEach(() => {
   getSession.mockReset()
@@ -167,6 +167,36 @@ describe('apiFetch', () => {
     expect(result).toBeUndefined()
   })
 
+})
+
+describe('getRequiredApiUrl', () => {
+  it('NEXT_PUBLIC_API_URL が未設定なら明示的なエラーを投げる', () => {
+    expect(() => getRequiredApiUrl({})).toThrow(
+      'NEXT_PUBLIC_API_URL が設定されていません',
+    )
+  })
+
+  it('NEXT_PUBLIC_API_URL が設定されていれば値を返す', () => {
+    expect(
+      getRequiredApiUrl({ NEXT_PUBLIC_API_URL: 'https://api.example.com' }),
+    ).toBe('https://api.example.com')
+  })
+
+  it('apiFetch は API_URL 未設定時にエラーを投げる (fetch しない)', async () => {
+    getSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } })
+    const fetchMock = mockFetch({ ok: true, status: 200, jsonBody: {} })
+    const original = process.env.NEXT_PUBLIC_API_URL
+    delete process.env.NEXT_PUBLIC_API_URL
+
+    try {
+      await expect(apiFetch('/api/spots/')).rejects.toThrow(
+        'NEXT_PUBLIC_API_URL が設定されていません',
+      )
+      expect(fetchMock).not.toHaveBeenCalled()
+    } finally {
+      process.env.NEXT_PUBLIC_API_URL = original
+    }
+  })
 })
 
 describe('ApiError', () => {

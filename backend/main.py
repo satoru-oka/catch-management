@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +8,16 @@ from fastapi.responses import JSONResponse
 from postgrest.exceptions import APIError as PostgrestAPIError
 
 from routers import catches, lures, sessions, spots
+
+# uvicorn 起動時はそちらのハンドラが root に乗るので force=False のまま既存設定を尊重する。
+# 単独実行や WSGI/ASGI 経由で root にハンドラが付いていない場合のみここで stderr を追加し、
+# `logger.exception` の ERROR ログが必ず出力されるようにする。
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        stream=sys.stderr,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
 
 logger = logging.getLogger(__name__)
 

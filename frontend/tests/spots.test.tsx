@@ -147,6 +147,36 @@ describe('SpotsPage', () => {
     })
   })
 
+  it('削除後の もっと読み込む は削除前の総取得件数を offset として使う', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, i) => ({
+      ...baseSpot,
+      id: `sp${i}`,
+      name: `ポイント${i}`,
+    }))
+    apiFetch.mockResolvedValueOnce(firstPage) // 初期 list
+    apiFetch.mockResolvedValueOnce(undefined) // DELETE
+    apiFetch.mockResolvedValueOnce([{ ...baseSpot, id: 'sp50', name: '次ページ先頭' }])
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<SpotsPage />)
+    await screen.findByText('ポイント0')
+    const user = userEvent.setup()
+
+    const deleteButtons = screen.getAllByRole('button', { name: '削除' })
+    await user.click(deleteButtons[0])
+    await waitFor(() =>
+      expect(screen.queryByText('ポイント0')).not.toBeInTheDocument(),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'もっと読み込む' }))
+
+    // 削除で items.length=49 になっても offset=50 を使うこと (重複行防止)
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenLastCalledWith('/api/spots?limit=50&offset=50')
+    })
+    expect(await screen.findByText('次ページ先頭')).toBeInTheDocument()
+    confirmSpy.mockRestore()
+  })
+
   it('削除ボタン: confirm 受諾で DELETE、UI から消える', async () => {
     apiFetch.mockResolvedValueOnce([baseSpot])
     apiFetch.mockResolvedValueOnce(undefined)

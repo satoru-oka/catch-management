@@ -19,6 +19,10 @@ export function useResourceList<T extends { id: string }, F extends Record<strin
 ) {
   const { endpoint, emptyForm, fromEntity, nullableFields, numberFields, deleteConfirm } = opts
   const [items, setItems] = useState<T[]>([])
+  // loadMore の offset は「サーバから受け取った件数の合計」を使う。
+  // items.length をそのまま使うと、削除後に offset が 1 件ずれて次ページの先頭行が
+  // 重複表示される (see issue #73)。
+  const [loadedCount, setLoadedCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(false)
@@ -32,6 +36,7 @@ export function useResourceList<T extends { id: string }, F extends Record<strin
       apiFetch<T[]>(withPagination(endpoint, { limit: LIST_PAGE_SIZE, offset }))
         .then((page) => {
           setItems((current) => (offset === 0 ? page : [...current, ...page]))
+          setLoadedCount((current) => (offset === 0 ? page.length : current + page.length))
           setHasMore(page.length === LIST_PAGE_SIZE)
         })
         .catch((e: ApiError) => setError(e.detail)),
@@ -107,7 +112,7 @@ export function useResourceList<T extends { id: string }, F extends Record<strin
 
   const loadMore = async () => {
     setLoadingMore(true)
-    await loadPage(items.length)
+    await loadPage(loadedCount)
     setLoadingMore(false)
   }
 
