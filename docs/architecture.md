@@ -117,8 +117,11 @@ flowchart TB
     subgraph Frontend["Frontend (Next.js)"]
         direction TB
         Pages["UI Pages<br/>app/login, app/(protected)/*"]
-        Lib["lib/<br/>api.ts (apiFetch + ApiError)<br/>supabase.ts (Auth Client)<br/>date/profile helpers<br/>types.ts (型定義)<br/>Loading.tsx"]
+        Lib["lib/<br/>api.ts (apiFetch + ApiError)<br/>supabase.ts (Auth Client)<br/>date / profile / pagination helpers<br/>formPayload + sessionFormConfig + catchFormConfig<br/>useResourceList / useFetchAllPages<br/>types.ts (型定義)<br/>Loading.tsx"]
+        Components["components/<br/>BottomNav<br/>Form (Input/Select/Textarea)<br/>SessionForm / CatchForm"]
         Pages --> Lib
+        Pages --> Components
+        Components --> Lib
     end
 
     subgraph Backend["Backend (FastAPI)"]
@@ -126,11 +129,13 @@ flowchart TB
         Main["main.py<br/>CORS + Router 登録"]
         Routers["routers/<br/>spots, sessions, catches, lures"]
         AuthMod["auth.py<br/>get_current_user<br/>get_supabase"]
-        StatsMod["stats.py<br/>stats view fallback helpers"]
+        StatsMod["stats.py<br/>view_with_fallback + helpers"]
+        ApiHelpers["api_helpers.py<br/>first_or_404 / assert_found"]
         DBMod["supabase_client.py<br/>SUPABASE_URL/ANON_KEY"]
         Main --> Routers
         Routers --> AuthMod
         Routers --> StatsMod
+        Routers --> ApiHelpers
         Routers --> DBMod
         AuthMod --> DBMod
     end
@@ -376,6 +381,10 @@ DELETE /api/lures/{lure_id}
 | 2026-05-20 | 401 の signOut / redirect は `(protected)/layout.tsx` に集約 | `apiFetch` は 401 を通知して `ApiError` を投げ、認証状態の破棄と遷移は auth boundary が担う |
 | 2026-05-20 | 統計 API は `security_invoker` view を優先し、未作成環境では従来集計へ fallback | RLS を維持しながら DB 集計へ移行し、既存 Supabase project の段階的更新を可能にする |
 | 2026-05-20 | `catches.lure_name` / `lure_color` は履歴 snapshot として drift を許容 | ルアー rename 後も過去釣果の当時表記を維持し、自由入力・削除済みルアー履歴を扱うため |
+| 2026-06-03 | router の 404 ボイラープレートを `api_helpers.first_or_404` / `assert_found` に集約 | 4 router × 10 箇所の `if not result.data: raise HTTPException(404)` を 1 関数に統一し、detail メッセージのタイポを起点にした退行を防ぐ |
+| 2026-06-03 | stats endpoint の view→fallback パターンを `stats.view_with_fallback` に統合 | view 欠落判定と「それ以外は再 raise」のルールを 1 箇所で守らせ、新規 stats endpoint 追加時の事故を防ぐ |
+| 2026-06-03 | 認証例外を `supabase.AuthApiError` / `AuthRetryableError` の isinstance で分岐 | `exc.__class__.__name__` 文字列マッチをやめ、リネームや名前空間衝突時はインポートエラーで早期検知 |
+| 2026-06-03 | spots/lures の list+CRUD を `useResourceList` フックへ、session/catch の new/edit を `SessionForm` / `CatchForm` component に集約 | フォーム JSX とフィールド設定の重複を解消し、新規 picker / フォームの追加コストを下げる |
 
 ---
 
@@ -388,7 +397,6 @@ DELETE /api/lures/{lure_id}
 | **テスト** | E2E / Storybook なし。pytest integration は `TEST_SUPABASE_*` 設定時のみ実 Supabase に接続 | 中 |
 | **パフォーマンス** | `SUPABASE_JWT_SECRET` 未設定時は `auth.get_user(token)` fallback で外部問い合わせが発生 | 低 (JWT secret 設定で解消) |
 | **パフォーマンス** | 統計 view 未作成の Supabase project では Python 集計 fallback になる | 中 (view 作成で解消) |
-| **コード品質** | spots / lures ページの CRUD ロジックが重複 | 中 |
 | **コード品質** | API レスポンスの型定義が手動同期 (Pydantic ↔ TypeScript) | 中 (OpenAPI 自動生成余地) |
 | **DX** | E2E テストやストーリーブック等の UI 検証フローなし | 低 |
 
@@ -406,6 +414,7 @@ catch-management/
 │   ├── supabase_client.py
 │   ├── auth.py
 │   ├── stats.py
+│   ├── api_helpers.py            ← first_or_404 / assert_found
 │   ├── CLAUDE.md
 │   ├── pyproject.toml            (Ruff 設定)
 │   ├── requirements.txt
@@ -442,11 +451,22 @@ catch-management/
     │               └── catches/
     │                   ├── new/page.tsx
     │                   └── [catchId]/edit/page.tsx
+    ├── components/
+    │   ├── BottomNav.tsx
+    │   ├── Form.tsx                    ← FormInput / FormSelect / FormTextarea
+    │   ├── SessionForm.tsx
+    │   └── CatchForm.tsx
     └── lib/
         ├── supabase.ts
         ├── api.ts
         ├── date.ts
         ├── profile.ts
+        ├── pagination.ts
+        ├── formPayload.ts
+        ├── sessionFormConfig.ts
+        ├── catchFormConfig.ts
+        ├── useResourceList.ts
+        ├── useFetchAllPages.ts
         ├── types.ts
         └── Loading.tsx
 ```
@@ -461,3 +481,4 @@ catch-management/
 |---|---|---|
 | 2026-05-06 | r1 | 初版。`service_role` 排除 + 認証ガード + 編集 UI 追加後の状態を記録 |
 | 2026-06-03 | r2 | §7 を再計測。旧スナップショットは Backend 434 LoC / Frontend 1,851 LoC / backend 7 files / page.tsx 10 / frontend 17 files / API endpoint 22 |
+| 2026-06-03 | r3 | PR #63 / #64 のリファクタを反映。§3 のレイヤード図に `components/` と新規 hook / config を追記、§8 に CRUD 404 ヘルパ・stats fallback ヘルパ・auth 例外型化・フォーム共通化の 4 項目を追加、§9 から完了済みの「spots/lures CRUD 重複」を削除、§10 のディレクトリツリーを新規ファイルへ追従 |

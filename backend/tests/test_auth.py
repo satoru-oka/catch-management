@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.testclient import TestClient
 from jose import jwt
+from supabase import AuthApiError, AuthRetryableError
 
 import auth
 from main import app
@@ -80,11 +81,8 @@ def test_get_current_user_auth_service_http_error_raises_503(monkeypatch):
 
 
 def test_get_current_user_auth_retryable_error_raises_503(monkeypatch):
-    class AuthRetryableError(Exception):
-        pass
-
     def boom(_token):
-        raise AuthRetryableError("auth retryable")
+        raise AuthRetryableError("auth retryable", 503)
 
     monkeypatch.setattr(
         auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))
@@ -99,11 +97,8 @@ def test_get_current_user_auth_retryable_error_raises_503(monkeypatch):
 
 
 def test_get_current_user_auth_api_error_raises_401(monkeypatch):
-    class AuthApiError(Exception):
-        pass
-
     def boom(_token):
-        raise AuthApiError("invalid jwt")
+        raise AuthApiError("invalid jwt", 401, None)
 
     monkeypatch.setattr(
         auth, "supabase", SimpleNamespace(auth=SimpleNamespace(get_user=boom))

@@ -36,3 +36,6 @@ dist/
 
 # Logs
 *.log
+
+# Local doc backups (e.g. docs/architecture.bakup.20260506.md)
+docs/*.bakup.*.md

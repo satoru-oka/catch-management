@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
+from api_helpers import assert_found, first_or_404
 from auth import get_current_user, get_supabase
-from stats import is_missing_view_error
+from stats import view_with_fallback
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -77,7 +78,7 @@ def monthly_stats(
     if from_month and to_month and from_month > to_month:
         raise HTTPException(status_code=422, detail="from_month must be before to_month")
 
-    try:
+    def from_view() -> dict[str, dict[str, int]]:
         query = db.table("user_monthly_session_stats").select(
             "month, session_count, catch_count"
         )
@@ -85,27 +86,29 @@ def monthly_stats(
             query = query.gte("month", from_month)
         if to_month:
             query = query.lte("month", to_month)
-        result = query.execute()
-        return _format_monthly_stats_rows(result.data)
-    except Exception as e:
-        if not is_missing_view_error(e, "user_monthly_session_stats"):
-            raise
+        return _format_monthly_stats_rows(query.execute().data)
 
-    query = db.table("sessions").select("date, catches(id, length_cm, fish_species)")
-    if from_month:
-        query = query.gte("date", f"{from_month}-01")
-    if to_month:
-        query = query.lte("date", _month_end_iso(to_month))
-    result = query.execute()
-    stats = {}
-    for session in result.data:
-        month = session["date"][:7]
-        catches = session.get("catches", [])
-        if month not in stats:
-            stats[month] = {"session_count": 0, "catch_count": 0}
-        stats[month]["session_count"] += 1
-        stats[month]["catch_count"] += len(catches)
-    return stats
+    def from_sessions() -> dict[str, dict[str, int]]:
+        query = db.table("sessions").select(
+            "date, catches(id, length_cm, fish_species)"
+        )
+        if from_month:
+            query = query.gte("date", f"{from_month}-01")
+        if to_month:
+            query = query.lte("date", _month_end_iso(to_month))
+        stats: dict[str, dict[str, int]] = {}
+        for session in query.execute().data:
+            month = session["date"][:7]
+            catches = session.get("catches", [])
+            if month not in stats:
+                stats[month] = {"session_count": 0, "catch_count": 0}
+            stats[month]["session_count"] += 1
+            stats[month]["catch_count"] += len(catches)
+        return stats
+
+    return view_with_fallback(
+        "user_monthly_session_stats", from_view, from_sessions
+    )
 
 
 def _format_monthly_stats_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
@@ -148,9 +151,7 @@ def get_session(session_id: str, db: Client = Depends(get_supabase)):
         .eq("id", session_id)
         .execute()
     )
-    if not result.data:
-        raise HTTPException(status_code=404, detail="釣行が見つかりません")
-    return result.data[0]
+    return first_or_404(result.data, "釣行が見つかりません")
 
 
 @router.put("/{session_id}")
@@ -164,9 +165,7 @@ def update_session(
     if not data:
         raise HTTPException(status_code=422, detail="更新するフィールドがありません")
     result = db.table("sessions").update(data).eq("id", session_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="釣行が見つかりません")
-    return result.data[0]
+    return first_or_404(result.data, "釣行が見つかりません")
 
 
 @router.delete("/{session_id}")
@@ -176,6 +175,5 @@ def delete_session(
     _user_id: str = Depends(get_current_user),
 ):
     result = db.table("sessions").delete().eq("id", session_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="釣行が見つかりません")
+    assert_found(result.data, "釣行が見つかりません")
     return {"message": "削除しました"}

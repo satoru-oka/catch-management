@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
+export const UNAUTHORIZED_EVENT = 'auth:unauthorized'
 
 export class ApiError extends Error {
   status: number
@@ -20,7 +21,7 @@ async function getToken() {
 
 function notifyUnauthorized() {
   if (typeof window === 'undefined') return
-  window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+  window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
 }
 
 export async function apiFetch<T = unknown>(

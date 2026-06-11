@@ -1,12 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { apiFetch, ApiError } from '@/lib/api'
-import { buildFormPayload } from '@/lib/formPayload'
+import { FormInput, FormSelect, FormTextarea } from '@/components/Form'
 import { FullScreenSpinner } from '@/lib/Loading'
-import { LIST_PAGE_SIZE, withPagination } from '@/lib/pagination'
 import type { Lure } from '@/lib/types'
+import { useResourceList } from '@/lib/useResourceList'
 
 type FormState = {
   name: string
@@ -17,112 +15,43 @@ type FormState = {
   notes: string
 }
 
-const emptyForm: FormState = { name: '', type: '', color: '', length_mm: '', weight_g: '', notes: '' }
-const nullableFields = ['type', 'color', 'length_mm', 'weight_g', 'notes']
-const numberFields = ['length_mm', 'weight_g']
-
-const fromLure = (l: Lure): FormState => ({
-  name: l.name,
-  type: l.type ?? '',
-  color: l.color ?? '',
-  length_mm: l.length_mm?.toString() ?? '',
-  weight_g: l.weight_g?.toString() ?? '',
-  notes: l.notes ?? '',
-})
-
-const toPayload = (f: FormState, nullEmpty = false) =>
-  buildFormPayload(f, {
-    nullableFields: nullEmpty ? nullableFields : [],
-    numberFields,
-  })
+const EMPTY_FORM: FormState = { name: '', type: '', color: '', length_mm: '', weight_g: '', notes: '' }
+const NULLABLE_FIELDS = ['type', 'color', 'length_mm', 'weight_g', 'notes'] as const
+const NUMBER_FIELDS = ['length_mm', 'weight_g'] as const
 
 export default function LuresPage() {
   const router = useRouter()
-  const [lures, setLures] = useState<Lure[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<FormState>(emptyForm)
-
-  const loadPage = useCallback((offset = 0) =>
-    apiFetch<Lure[]>(
-      withPagination('/api/lures', { limit: LIST_PAGE_SIZE, offset }),
-    )
-      .then((page) => {
-        setLures((current) => (offset === 0 ? page : [...current, ...page]))
-        setHasMore(page.length === LIST_PAGE_SIZE)
-      })
-      .catch((e: ApiError) => setError(e.detail)), [])
-
-  const reload = useCallback(() => loadPage(0), [loadPage])
-
-  useEffect(() => {
-    reload().finally(() => setLoading(false))
-  }, [reload])
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
-  ) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
-
-  const startCreate = () => {
-    setEditingId(null)
-    setForm(emptyForm)
-    setShowForm(true)
-  }
-
-  const startEdit = (l: Lure) => {
-    setEditingId(l.id)
-    setForm(fromLure(l))
-    setShowForm(true)
-  }
-
-  const cancel = () => {
-    setShowForm(false)
-    setEditingId(null)
-    setForm(emptyForm)
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      if (editingId) {
-        await apiFetch<Lure>(`/api/lures/${editingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(toPayload(form, true)),
-        })
-      } else {
-        await apiFetch<Lure>('/api/lures', {
-          method: 'POST',
-          body: JSON.stringify(toPayload(form)),
-        })
-      }
-      cancel()
-      await reload()
-    } catch (e) {
-      alert(e instanceof ApiError ? e.detail : '保存に失敗しました')
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('このルアーを削除しますか?')) return
-    try {
-      await apiFetch(`/api/lures/${id}`, { method: 'DELETE' })
-      setLures(lures.filter((l) => l.id !== id))
-    } catch (e) {
-      alert(e instanceof ApiError ? e.detail : '削除に失敗しました')
-    }
-  }
-
-  const loadMore = async () => {
-    setLoadingMore(true)
-    await loadPage(lures.length)
-    setLoadingMore(false)
-  }
+  const {
+    items: lures,
+    loading,
+    loadingMore,
+    hasMore,
+    error,
+    showForm,
+    editingId,
+    form,
+    handleChange,
+    startCreate,
+    startEdit,
+    cancel,
+    handleSubmit,
+    handleDelete,
+    loadMore,
+  } = useResourceList<Lure, FormState>({
+    endpoint: '/api/lures',
+    emptyForm: EMPTY_FORM,
+    fromEntity: (l) => ({
+      name: l.name,
+      type: l.type ?? '',
+      color: l.color ?? '',
+      length_mm: l.length_mm?.toString() ?? '',
+      weight_g: l.weight_g?.toString() ?? '',
+      notes: l.notes ?? '',
+    }),
+    nullableFields: NULLABLE_FIELDS,
+    numberFields: NUMBER_FIELDS,
+    deleteConfirm: 'このルアーを削除しますか?',
+  })
 
   if (loading) return <FullScreenSpinner />
 
@@ -152,49 +81,20 @@ export default function LuresPage() {
         {showForm && (
           <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="font-bold text-gray-700">{editingId ? '編集' : '新規追加'}</h2>
-            <div>
-              <label htmlFor="lure-form-name" className="block text-sm font-medium text-gray-700 mb-1">ルアー名 *</label>
-              <input type="text" id="lure-form-name" name="name" value={form.name} onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Dコンタクト63" required />
+            <FormInput label="ルアー名" name="name" type="text" value={form.name} onChange={handleChange} placeholder="Dコンタクト63" className="text-gray-900" required />
+            <div className="grid grid-cols-2 gap-4">
+              <FormSelect label="種別" name="type" value={form.type} onChange={handleChange} className="text-gray-900">
+                <option value="">選択</option>
+                <option>ミノー</option><option>スプーン</option><option>スピナー</option>
+                <option>クランク</option><option>その他</option>
+              </FormSelect>
+              <FormInput label="カラー" name="color" type="text" value={form.color} onChange={handleChange} placeholder="チャート" className="text-gray-900" />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="lure-form-type" className="block text-sm font-medium text-gray-700 mb-1">種別</label>
-                <select id="lure-form-type" name="type" value={form.type} onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">選択</option>
-                  <option>ミノー</option><option>スプーン</option><option>スピナー</option>
-                  <option>クランク</option><option>その他</option>
-                </select>
-              </div>
-              <div>
-                <label htmlFor="lure-form-color" className="block text-sm font-medium text-gray-700 mb-1">カラー</label>
-                <input type="text" id="lure-form-color" name="color" value={form.color} onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="チャート" />
-              </div>
+              <FormInput label="長さ (mm)" name="length_mm" type="number" value={form.length_mm} onChange={handleChange} placeholder="63" step="0.1" className="text-gray-900" />
+              <FormInput label="重さ (g)" name="weight_g" type="number" value={form.weight_g} onChange={handleChange} placeholder="4.5" step="0.1" className="text-gray-900" />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="lure-form-length_mm" className="block text-sm font-medium text-gray-700 mb-1">長さ (mm)</label>
-                <input type="number" id="lure-form-length_mm" name="length_mm" value={form.length_mm} onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="63" step="0.1" />
-              </div>
-              <div>
-                <label htmlFor="lure-form-weight_g" className="block text-sm font-medium text-gray-700 mb-1">重さ (g)</label>
-                <input type="number" id="lure-form-weight_g" name="weight_g" value={form.weight_g} onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="4.5" step="0.1" />
-              </div>
-            </div>
-            <div>
-              <label htmlFor="lure-form-notes" className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
-              <textarea id="lure-form-notes" name="notes" value={form.notes} onChange={handleChange} rows={2}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="使用感など..." />
-            </div>
+            <FormTextarea label="メモ" name="notes" value={form.notes} onChange={handleChange} rows={2} placeholder="使用感など..." className="text-gray-900" />
             <button type="submit"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg text-sm">
               保存

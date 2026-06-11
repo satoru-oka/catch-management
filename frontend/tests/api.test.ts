@@ -12,7 +12,7 @@ vi.mock('@/lib/supabase', () => ({
   }),
 }))
 
-import { ApiError, apiFetch } from '@/lib/api'
+import { ApiError, apiFetch, UNAUTHORIZED_EVENT } from '@/lib/api'
 
 beforeEach(() => {
   getSession.mockReset()
@@ -78,7 +78,7 @@ describe('apiFetch', () => {
     getSession.mockResolvedValue({ data: { session: null } })
     const fetchMock = mockFetch({ ok: true, status: 200 })
     const unauthorized = vi.fn()
-    window.addEventListener('auth:unauthorized', unauthorized)
+    window.addEventListener(UNAUTHORIZED_EVENT, unauthorized)
 
     try {
       await expect(apiFetch('/api/spots/')).rejects.toMatchObject({
@@ -89,7 +89,7 @@ describe('apiFetch', () => {
       expect(signOut).not.toHaveBeenCalled()
       expect(unauthorized).toHaveBeenCalledTimes(1)
     } finally {
-      window.removeEventListener('auth:unauthorized', unauthorized)
+      window.removeEventListener(UNAUTHORIZED_EVENT, unauthorized)
     }
   })
 
@@ -97,14 +97,14 @@ describe('apiFetch', () => {
     getSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } })
     mockFetch({ ok: false, status: 401, jsonBody: { detail: 'Token expired' } })
     const unauthorized = vi.fn()
-    window.addEventListener('auth:unauthorized', unauthorized)
+    window.addEventListener(UNAUTHORIZED_EVENT, unauthorized)
 
     try {
       await expect(apiFetch('/api/spots/')).rejects.toBeInstanceOf(ApiError)
       expect(signOut).not.toHaveBeenCalled()
       expect(unauthorized).toHaveBeenCalledTimes(1)
     } finally {
-      window.removeEventListener('auth:unauthorized', unauthorized)
+      window.removeEventListener(UNAUTHORIZED_EVENT, unauthorized)
     }
   })
 
@@ -126,7 +126,7 @@ describe('apiFetch', () => {
       jsonBody: { detail: 'Auth service unavailable' },
     })
     const unauthorized = vi.fn()
-    window.addEventListener('auth:unauthorized', unauthorized)
+    window.addEventListener(UNAUTHORIZED_EVENT, unauthorized)
 
     try {
       await expect(apiFetch('/api/spots/')).rejects.toMatchObject({
@@ -135,7 +135,7 @@ describe('apiFetch', () => {
       })
       expect(unauthorized).not.toHaveBeenCalled()
     } finally {
-      window.removeEventListener('auth:unauthorized', unauthorized)
+      window.removeEventListener(UNAUTHORIZED_EVENT, unauthorized)
     }
   })
 

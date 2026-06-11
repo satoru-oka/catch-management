@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
+from api_helpers import assert_found, first_or_404
 from auth import get_current_user, get_supabase
-from stats import is_missing_view_error
+from stats import view_with_fallback
 
 router = APIRouter(prefix="/api/lures", tags=["lures"])
 
@@ -50,7 +51,7 @@ def create_lure(
     db: Client = Depends(get_supabase),
     user_id: str = Depends(get_current_user),
 ):
-    data = {k: v for k, v in lure.model_dump().items() if v is not None}
+    data = lure.model_dump(mode="json", exclude_none=True)
     data["user_id"] = user_id
     result = db.table("lures").insert(data).execute()
     return result.data[0]
@@ -63,13 +64,11 @@ def update_lure(
     db: Client = Depends(get_supabase),
     _user_id: str = Depends(get_current_user),
 ):
-    data = lure.model_dump(exclude_unset=True)
+    data = lure.model_dump(mode="json", exclude_unset=True)
     if not data:
         raise HTTPException(status_code=422, detail="更新するフィールドがありません")
     result = db.table("lures").update(data).eq("id", lure_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="ルアーが見つかりません")
-    return result.data[0]
+    return first_or_404(result.data, "ルアーが見つかりません")
 
 
 @router.delete("/{lure_id}")
@@ -79,39 +78,38 @@ def delete_lure(
     _user_id: str = Depends(get_current_user),
 ):
     result = db.table("lures").delete().eq("id", lure_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="ルアーが見つかりません")
+    assert_found(result.data, "ルアーが見つかりません")
     return {"message": "削除しました"}
 
 
 @router.get("/stats")
 def lure_stats(db: Client = Depends(get_supabase)):
-    try:
+    def from_view() -> dict[str, dict[str, float | int]]:
         result = (
             db.table("user_lure_stats")
             .select("lure_name, count, avg_length")
             .execute()
         )
         return _format_lure_stats_rows(result.data)
-    except Exception as e:
-        if not is_missing_view_error(e, "user_lure_stats"):
-            raise
 
-    # RLSによりログインユーザーのcatchesのみ取得される
-    result = db.table("catches").select("lure_name, length_cm").execute()
-    stats = {}
-    for catch in result.data:
-        key = catch.get("lure_name") or "不明"
-        if key not in stats:
-            stats[key] = {"count": 0, "avg_length": 0, "lengths": []}
-        stats[key]["count"] += 1
-        if catch.get("length_cm") is not None:
-            stats[key]["lengths"].append(catch["length_cm"])
-    for key in stats:
-        lengths = stats[key].pop("lengths")
-        if lengths:
-            stats[key]["avg_length"] = round(sum(lengths) / len(lengths), 1)
-    return stats
+    def from_catches() -> dict[str, dict[str, float | int]]:
+        # RLSによりログインユーザーのcatchesのみ取得される
+        result = db.table("catches").select("lure_name, length_cm").execute()
+        stats: dict[str, dict[str, Any]] = {}
+        for catch in result.data:
+            key = catch.get("lure_name") or "不明"
+            if key not in stats:
+                stats[key] = {"count": 0, "avg_length": 0, "lengths": []}
+            stats[key]["count"] += 1
+            if catch.get("length_cm") is not None:
+                stats[key]["lengths"].append(catch["length_cm"])
+        for key in stats:
+            lengths = stats[key].pop("lengths")
+            if lengths:
+                stats[key]["avg_length"] = round(sum(lengths) / len(lengths), 1)
+        return stats
+
+    return view_with_fallback("user_lure_stats", from_view, from_catches)
 
 
 def _format_lure_stats_rows(rows: list[dict[str, Any]]) -> dict[str, dict[str, float | int]]:

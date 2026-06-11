@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
+from api_helpers import assert_found, first_or_404
 from auth import get_current_user, get_supabase
 
 router = APIRouter(prefix="/api", tags=["catches"])
@@ -62,10 +63,9 @@ def create_catch(
 ):
     # RLSにより自分が所有しないsessionは取得できない
     session = db.table("sessions").select("id").eq("id", session_id).execute()
-    if not session.data:
-        raise HTTPException(status_code=404, detail="釣行が見つかりません")
+    assert_found(session.data, "釣行が見つかりません")
     validate_lure_id(catch.lure_id, db)
-    data = {k: v for k, v in catch.model_dump(mode="json").items() if v is not None}
+    data = catch.model_dump(mode="json", exclude_none=True)
     data["session_id"] = session_id
     result = db.table("catches").insert(data).execute()
     return result.data[0]
@@ -114,9 +114,7 @@ def get_catch(catch_id: str, db: Client = Depends(get_supabase)):
         .eq("id", catch_id)
         .execute()
     )
-    if not result.data:
-        raise HTTPException(status_code=404, detail="釣果が見つかりません")
-    return result.data[0]
+    return first_or_404(result.data, "釣果が見つかりません")
 
 
 @router.put("/catches/{catch_id}")
@@ -132,9 +130,7 @@ def update_catch(
     if data.get("lure_id") is not None:
         validate_lure_id(data["lure_id"], db)
     result = db.table("catches").update(data).eq("id", catch_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="釣果が見つかりません")
-    return result.data[0]
+    return first_or_404(result.data, "釣果が見つかりません")
 
 
 @router.delete("/catches/{catch_id}")
@@ -144,6 +140,5 @@ def delete_catch(
     _user_id: str = Depends(get_current_user),
 ):
     result = db.table("catches").delete().eq("id", catch_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="釣果が見つかりません")
+    assert_found(result.data, "釣果が見つかりません")
     return {"message": "削除しました"}

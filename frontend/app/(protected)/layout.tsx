@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { FullScreenSpinner } from '@/lib/Loading'
 import BottomNav from '@/components/BottomNav'
+import { UNAUTHORIZED_EVENT } from '@/lib/api'
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -35,12 +36,12 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) router.replace('/login')
     })
-    window.addEventListener('auth:unauthorized', handleUnauthorized)
+    window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized)
 
     return () => {
       cancelled = true
       sub.subscription.unsubscribe()
-      window.removeEventListener('auth:unauthorized', handleUnauthorized)
+      window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized)
     }
   }, [handleUnauthorized, router])
 

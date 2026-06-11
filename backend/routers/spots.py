@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
+from api_helpers import assert_found, first_or_404
 from auth import get_current_user, get_supabase
 
 router = APIRouter(prefix="/api/spots", tags=["spots"])
@@ -45,7 +46,7 @@ def create_spot(
     db: Client = Depends(get_supabase),
     user_id: str = Depends(get_current_user),
 ):
-    data = {k: v for k, v in spot.model_dump().items() if v is not None}
+    data = spot.model_dump(mode="json", exclude_none=True)
     data["user_id"] = user_id
     result = db.table("spots").insert(data).execute()
     return result.data[0]
@@ -54,9 +55,7 @@ def create_spot(
 @router.get("/{spot_id}")
 def get_spot(spot_id: str, db: Client = Depends(get_supabase)):
     result = db.table("spots").select("*").eq("id", spot_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="ポイントが見つかりません")
-    return result.data[0]
+    return first_or_404(result.data, "ポイントが見つかりません")
 
 
 @router.put("/{spot_id}")
@@ -66,13 +65,11 @@ def update_spot(
     db: Client = Depends(get_supabase),
     _user_id: str = Depends(get_current_user),
 ):
-    data = spot.model_dump(exclude_unset=True)
+    data = spot.model_dump(mode="json", exclude_unset=True)
     if not data:
         raise HTTPException(status_code=422, detail="更新するフィールドがありません")
     result = db.table("spots").update(data).eq("id", spot_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="ポイントが見つかりません")
-    return result.data[0]
+    return first_or_404(result.data, "ポイントが見つかりません")
 
 
 @router.delete("/{spot_id}")
@@ -82,8 +79,7 @@ def delete_spot(
     _user_id: str = Depends(get_current_user),
 ):
     result = db.table("spots").delete().eq("id", spot_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="ポイントが見つかりません")
+    assert_found(result.data, "ポイントが見つかりません")
     return {"message": "削除しました"}
 
 
