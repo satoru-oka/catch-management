@@ -129,6 +129,14 @@ def test_update_spot_not_found(client, fake_db):
     assert res.status_code == 404
 
 
+def test_update_spot_empty_body_returns_422(client, fake_db):
+    res = client.put("/api/spots/s1", json={})
+
+    assert res.status_code == 422
+    assert res.json()["detail"] == "更新するフィールドがありません"
+    assert fake_db.calls == []
+
+
 def test_delete_spot_success(client, fake_db):
     fake_db.queue_result([{"id": "s1"}])
 

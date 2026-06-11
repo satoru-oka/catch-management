@@ -67,6 +67,8 @@ def update_spot(
     _user_id: str = Depends(get_current_user),
 ):
     data = spot.model_dump(exclude_unset=True)
+    if not data:
+        raise HTTPException(status_code=422, detail="更新するフィールドがありません")
     result = db.table("spots").update(data).eq("id", spot_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="ポイントが見つかりません")

@@ -127,6 +127,8 @@ def update_catch(
     _user_id: str = Depends(get_current_user),
 ):
     data = catch.model_dump(mode="json", exclude_unset=True)
+    if not data:
+        raise HTTPException(status_code=422, detail="更新するフィールドがありません")
     if data.get("lure_id") is not None:
         validate_lure_id(data["lure_id"], db)
     result = db.table("catches").update(data).eq("id", catch_id).execute()
