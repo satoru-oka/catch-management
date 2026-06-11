@@ -18,6 +18,7 @@ vi.mock('@/lib/supabase', () => ({
 }))
 
 import ProtectedLayout from '@/app/(protected)/layout'
+import { UNAUTHORIZED_EVENT } from '@/lib/api'
 
 beforeEach(() => {
   replace.mockReset()
@@ -90,7 +91,7 @@ describe('ProtectedLayout', () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
   })
 
-  it('auth:unauthorized イベントで signOut して /login に遷移する', async () => {
+  it('unauthorized event を受けたら signOut して /login に遷移する', async () => {
     getSession.mockResolvedValue({ data: { session: { user: { id: 'u' } } } })
     render(
       <ProtectedLayout>
@@ -99,13 +100,13 @@ describe('ProtectedLayout', () => {
     )
     await screen.findByTestId('child')
 
-    window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
 
     await waitFor(() => expect(signOut).toHaveBeenCalled())
-    expect(replace).toHaveBeenCalledWith('/login')
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
   })
 
-  it('auth:unauthorized の signOut が失敗しても /login に遷移する', async () => {
+  it('signOut が失敗しても unauthorized event では /login に遷移する', async () => {
     getSession.mockResolvedValue({ data: { session: { user: { id: 'u' } } } })
     signOut.mockRejectedValueOnce(new Error('boom'))
     render(
@@ -115,7 +116,7 @@ describe('ProtectedLayout', () => {
     )
     await screen.findByTestId('child')
 
-    window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
   })
