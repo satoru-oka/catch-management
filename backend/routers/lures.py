@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
@@ -65,6 +65,8 @@ def update_lure(
     _user_id: str = Depends(get_current_user),
 ):
     data = lure.model_dump(mode="json", exclude_unset=True)
+    if not data:
+        raise HTTPException(status_code=422, detail="更新するフィールドがありません")
     result = db.table("lures").update(data).eq("id", lure_id).execute()
     return first_or_404(result.data, "ルアーが見つかりません")
 

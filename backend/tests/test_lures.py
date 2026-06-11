@@ -102,6 +102,14 @@ def test_update_lure_not_found(client, fake_db):
     assert res.json()["detail"] == "ルアーが見つかりません"
 
 
+def test_update_lure_empty_body_returns_422(client, fake_db):
+    res = client.put("/api/lures/l1", json={})
+
+    assert res.status_code == 422
+    assert res.json()["detail"] == "更新するフィールドがありません"
+    assert fake_db.calls == []
+
+
 def test_delete_lure_success(client, fake_db):
     fake_db.queue_result([{"id": "l1"}])
 

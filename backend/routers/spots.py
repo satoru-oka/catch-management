@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from supabase import Client
 
@@ -66,6 +66,8 @@ def update_spot(
     _user_id: str = Depends(get_current_user),
 ):
     data = spot.model_dump(mode="json", exclude_unset=True)
+    if not data:
+        raise HTTPException(status_code=422, detail="更新するフィールドがありません")
     result = db.table("spots").update(data).eq("id", spot_id).execute()
     return first_or_404(result.data, "ポイントが見つかりません")
 

@@ -260,6 +260,14 @@ def test_update_catch_not_found(client, fake_db):
     assert res.status_code == 404
 
 
+def test_update_catch_empty_body_returns_422(client, fake_db):
+    res = client.put("/api/catches/c1", json={})
+
+    assert res.status_code == 422
+    assert res.json()["detail"] == "更新するフィールドがありません"
+    assert fake_db.calls == []
+
+
 def test_delete_catch_success(client, fake_db):
     fake_db.queue_result([{"id": "c1"}])
 

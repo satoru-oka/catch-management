@@ -162,6 +162,8 @@ def update_session(
     _user_id: str = Depends(get_current_user),
 ):
     data = session.model_dump(mode="json", exclude_unset=True)
+    if not data:
+        raise HTTPException(status_code=422, detail="更新するフィールドがありません")
     result = db.table("sessions").update(data).eq("id", session_id).execute()
     return first_or_404(result.data, "釣行が見つかりません")
 
