@@ -1,12 +1,27 @@
 # catch-management
 
+釣行、釣果、ポイント、ルアーを記録し、あとから統計で振り返るための釣果管理アプリです。
+
+[![CI](https://github.com/satoru-oka/catch-management/actions/workflows/ci.yml/badge.svg)](https://github.com/satoru-oka/catch-management/actions/workflows/ci.yml)
+
 <p align="center">
   <img src="./screenshot.png" alt="釣果ログ アプリのトップ画面" width="320" />
 </p>
 
-釣行、釣果、ポイント、ルアーを記録し、あとから統計で振り返るための釣果管理アプリです。
-
 フロントエンドは Next.js、バックエンドは FastAPI、認証とデータ保存は Supabase を使います。バックエンドは Supabase の `anon` key だけを持ち、ブラウザから受け取ったユーザー JWT を PostgREST に中継することで Row Level Security に認可を任せる構成です。
+
+## 目次
+
+- [主な機能](#主な機能)
+- [使用技術](#使用技術)
+- [構成](#構成)
+- [セットアップ](#セットアップ)
+- [環境変数](#環境変数)
+- [開発コマンド](#開発コマンド)
+- [テストと CI](#テストと-ci)
+- [関連ドキュメント](#関連ドキュメント)
+- [今後の改善予定](#今後の改善予定)
+- [開発メモ](#開発メモ)
 
 ## 主な機能
 
