@@ -170,7 +170,7 @@ def test_list_catches_with_range_filters(client, fake_db):
     assert res.status_code == 200
     ops = fake_db.calls[0]["ops"]
     # JST の暦日を UTC 範囲に変換して比較する (#68)。
-    # 2026-05-01 JST 00:00 = 2026-04-30T15:00Z / 2026-05-31 JST 23:59:59.999999 = 同日 14:59:59.999999Z
+    # 2026-05-01 JST 00:00 = 2026-04-30T15:00Z / 2026-05-31 JST 終端 = 同日 14:59:59.999999Z
     assert ("gte", ("caught_at", "2026-04-30T15:00:00+00:00"), {}) in ops
     assert ("lte", ("caught_at", "2026-05-31T14:59:59.999999+00:00"), {}) in ops
     assert ("gte", ("length_cm", 20.0), {}) in ops
