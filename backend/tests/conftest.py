@@ -25,8 +25,9 @@ TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
 class FakeResult:
-    def __init__(self, data: Any):
+    def __init__(self, data: Any, count: int | None = None):
         self.data = data
+        self.count = count
 
 
 class FakeQueryBuilder:
@@ -75,6 +76,9 @@ class FakeQueryBuilder:
     def range(self, *a, **k):
         return self._record("range", *a, **k)
 
+    def limit(self, *a, **k):
+        return self._record("limit", *a, **k)
+
     def execute(self) -> FakeResult:
         self._db.calls.append({"table": self._table, "ops": self._ops})
         return self._db._consume_result()
@@ -91,8 +95,8 @@ class FakeSupabase:
         self._results: list[FakeResult | Exception] = []
         self.calls: list[dict] = []
 
-    def queue_result(self, data: Any) -> None:
-        self._results.append(FakeResult(data))
+    def queue_result(self, data: Any, count: int | None = None) -> None:
+        self._results.append(FakeResult(data, count))
 
     def queue_error(self, exc: Exception) -> None:
         self._results.append(exc)

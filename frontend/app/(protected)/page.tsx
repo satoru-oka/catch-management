@@ -5,13 +5,24 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { apiFetch, ApiError } from '@/lib/api'
 import { tokyoDateIso } from '@/lib/date'
-import { fetchAllPages } from '@/lib/pagination'
 import { extractProfile, profileInitial, type Profile } from '@/lib/profile'
 import { FullScreenSpinner } from '@/lib/Loading'
-import type { Catch, SessionWithSpot } from '@/lib/types'
+import type { Catch } from '@/lib/types'
 
-type CatchWithSession = Catch & {
-  sessions: { date: string; spot_id: string | null } | null
+// /api/catches/stats/summary のレスポンス。サーバー集計に置き換え (#72)。
+type RecentCatch = Catch & {
+  sessions: {
+    date: string
+    spots: { name: string; river_name: string | null } | null
+  } | null
+}
+
+type CatchSummary = {
+  today: { count: number; total_weight_g: number; max_length_cm: number | null }
+  lifetime_count: number
+  month_count: number
+  max_catch: { fish_species: string; length_cm: number | null } | null
+  recent: RecentCatch[]
 }
 
 const WEEKDAY = ['日', '月', '火', '水', '木', '金', '土']
@@ -22,35 +33,20 @@ function formatJpDate(iso: string): string {
   return `${month}月${day}日(${WEEKDAY[d.getDay()]})`
 }
 
-function catchDate(c: CatchWithSession): string {
-  if (c.caught_at) {
-    const date = new Date(c.caught_at)
-    if (!Number.isNaN(date.getTime())) return tokyoDateIso(date)
-    return c.caught_at.slice(0, 10)
-  }
-  return c.sessions?.date?.slice(0, 10) ?? ''
-}
-
 export default function HomePage() {
-  const [catches, setCatches] = useState<CatchWithSession[]>([])
-  const [sessions, setSessions] = useState<SessionWithSpot[]>([])
+  const [summary, setSummary] = useState<CatchSummary | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // ホームは全件ページングをやめ、サーバー集計 1 本 + プロフィールに置き換え (#72)。
     Promise.all([
-      fetchAllPages<CatchWithSession>('/api/catches', (path) =>
-        apiFetch<CatchWithSession[]>(path),
-      ),
-      fetchAllPages<SessionWithSpot>('/api/sessions', (path) =>
-        apiFetch<SessionWithSpot[]>(path),
-      ),
+      apiFetch<CatchSummary>('/api/catches/stats/summary'),
       createClient().auth.getUser(),
     ])
-      .then(([c, s, { data }]) => {
-        setCatches(c)
-        setSessions(s)
+      .then(([s, { data }]) => {
+        setSummary(s)
         setProfile(extractProfile(data.user))
       })
       .catch((e: ApiError) => setError(e.detail))
@@ -61,33 +57,14 @@ export default function HomePage() {
   const monthStart = useMemo(() => `${today.slice(0, 7)}-01`, [today])
   const greetingName = profile?.name ?? 'ゲスト'
   const greetingInitial = useMemo(() => profileInitial(greetingName), [greetingName])
-  const {
-    todayCount,
-    todayWeightKg,
-    todayMaxCm,
-    lifetime,
-    monthly,
-    maxCatch,
-    sessionById,
-    recent,
-  } = useMemo(() => {
-    const todaysCatches = catches.filter((c) => catchDate(c) === today)
-    const monthlyCatches = catches.filter((c) => catchDate(c) >= monthStart)
-    return {
-      todayCount: todaysCatches.length,
-      todayWeightKg:
-        todaysCatches.reduce((sum, c) => sum + (c.weight_g ?? 0), 0) / 1000,
-      todayMaxCm: todaysCatches.reduce((m, c) => Math.max(m, c.length_cm ?? 0), 0),
-      lifetime: catches.length,
-      monthly: monthlyCatches.length,
-      maxCatch: catches.reduce<CatchWithSession | null>((max, c) => {
-        if ((c.length_cm ?? 0) > (max?.length_cm ?? 0)) return c
-        return max
-      }, null),
-      sessionById: new Map(sessions.map((s) => [s.id, s])),
-      recent: catches.slice(0, 3),
-    }
-  }, [catches, monthStart, sessions, today])
+
+  const todayCount = summary?.today.count ?? 0
+  const todayWeightKg = (summary?.today.total_weight_g ?? 0) / 1000
+  const todayMaxCm = summary?.today.max_length_cm ?? 0
+  const lifetime = summary?.lifetime_count ?? 0
+  const monthly = summary?.month_count ?? 0
+  const maxCatch = summary?.max_catch ?? null
+  const recent = summary?.recent ?? []
 
   if (loading) return <FullScreenSpinner />
 
@@ -201,9 +178,8 @@ export default function HomePage() {
           ) : (
             <ul className="divide-y divide-gray-100">
               {recent.map((c) => {
-                const parent = sessionById.get(c.session_id)
-                const spot = parent?.spots ?? null
-                const date = c.sessions?.date ?? catchDate(c)
+                const spot = c.sessions?.spots ?? null
+                const date = c.sessions?.date ?? ''
                 return (
                   <li key={c.id} className="py-3 flex items-center gap-3">
                     {c.photo_url ? (
