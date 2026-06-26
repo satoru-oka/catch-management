@@ -13,6 +13,11 @@ import datetime as dt
 JST = dt.timezone(dt.timedelta(hours=9))
 
 
+def jst_today() -> dt.date:
+    """JST における「今日」の日付。"""
+    return dt.datetime.now(JST).date()
+
+
 def to_utc_iso(value: dt.datetime) -> str:
     """datetime を UTC の ISO 文字列にする。
 

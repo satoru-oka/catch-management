@@ -20,22 +20,8 @@ import HomePage from '@/app/(protected)/page'
 
 const today = new Date().toISOString().slice(0, 10)
 
-const session = {
-  id: 'ses1',
-  user_id: 'u',
-  spot_id: 'sp1',
-  date: today,
-  start_time: null,
-  end_time: null,
-  water_level: '平水',
-  water_clarity: 'クリア',
-  weather: '晴れ',
-  notes: null,
-  created_at: '',
-  spots: { name: '本流ポイント', river_name: '球磨川' },
-}
-
-const catchRecord = {
+// /api/catches/stats/summary のレスポンス相当 (#72 でサーバー集計に移行)。
+const recentCatch = {
   id: 'catch1',
   session_id: 'ses1',
   fish_species: 'ヤマメ',
@@ -44,12 +30,24 @@ const catchRecord = {
   lure_id: null,
   lure_name: 'D-コンタクト',
   lure_color: 'アユ',
-  caught_at: `${today}T08:30:00.000Z`,
+  caught_at: null,
   is_released: true,
   photo_url: null,
   notes: null,
   created_at: '',
-  sessions: { date: today, spot_id: 'sp1' },
+  sessions: { date: today, spots: { name: '本流ポイント', river_name: '球磨川' } },
+}
+
+const emptySummary = {
+  today: { count: 0, total_weight_g: 0, max_length_cm: null },
+  lifetime_count: 0,
+  month_count: 0,
+  max_catch: null,
+  recent: [],
+}
+
+function summaryWith(overrides: Partial<typeof emptySummary>) {
+  return { ...emptySummary, ...overrides }
 }
 
 beforeEach(() => {
@@ -78,9 +76,16 @@ describe('HomePage', () => {
     expect(screen.getByRole('status')).toBeInTheDocument()
   })
 
-  it('釣果と釣行を取得してダッシュボードを表示する', async () => {
-    apiFetch.mockResolvedValueOnce([catchRecord])
-    apiFetch.mockResolvedValueOnce([session])
+  it('サマリーを 1 本の集計 API で取得してダッシュボードを表示する', async () => {
+    apiFetch.mockResolvedValueOnce(
+      summaryWith({
+        today: { count: 1, total_weight_g: 500, max_length_cm: 25 },
+        lifetime_count: 1,
+        month_count: 1,
+        max_catch: { fish_species: 'ヤマメ', length_cm: 25 },
+        recent: [recentCatch],
+      }),
+    )
 
     render(<HomePage />)
 
@@ -90,37 +95,26 @@ describe('HomePage', () => {
     expect(screen.getByText(/球磨川/)).toBeInTheDocument()
 
     await waitFor(() => {
-      expect(apiFetch).toHaveBeenNthCalledWith(1, '/api/catches?limit=200&offset=0')
-      expect(apiFetch).toHaveBeenNthCalledWith(2, '/api/sessions?limit=200&offset=0')
+      // 全件ページングではなくサマリー 1 本だけを叩く
+      expect(apiFetch).toHaveBeenCalledTimes(1)
+      expect(apiFetch).toHaveBeenCalledWith('/api/catches/stats/summary')
       expect(getUser).toHaveBeenCalled()
     })
   })
 
-  it('今日と今月の集計を JST の日付で計算する', async () => {
+  it('今日/今月の数値と JST の日付ヘッダを表示する', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-05-31T15:30:00.000Z')) // 2026-06-01 00:30 JST
-    apiFetch.mockResolvedValueOnce([
-      {
-        ...catchRecord,
-        id: 'today',
-        fish_species: 'ブラックバス',
-        length_cm: 42,
-        caught_at: '2026-05-31T15:20:00.000Z', // 2026-06-01 00:20 JST
-      },
-      {
-        ...catchRecord,
-        id: 'yesterday',
-        fish_species: 'ブラックバス',
-        length_cm: 42,
-        caught_at: '2026-05-31T14:50:00.000Z', // 2026-05-31 23:50 JST
-      },
-    ])
-    apiFetch.mockResolvedValueOnce([session])
+    apiFetch.mockResolvedValueOnce(
+      summaryWith({
+        today: { count: 1, total_weight_g: 420, max_length_cm: 42 },
+        month_count: 1,
+      }),
+    )
 
     render(<HomePage />)
 
-    expect((await screen.findAllByText('ブラックバス')).length).toBeGreaterThan(0)
-    const todaySection = screen.getByText('今日の釣果').closest('section')
+    const todaySection = (await screen.findByText('今日の釣果')).closest('section')
     expect(todaySection).not.toBeNull()
     expect(within(todaySection as HTMLElement).getByText('6月1日(月)')).toBeInTheDocument()
     expect(within(todaySection as HTMLElement).getByText('1')).toBeInTheDocument()
@@ -137,8 +131,7 @@ describe('HomePage', () => {
         },
       },
     })
-    apiFetch.mockResolvedValueOnce([])
-    apiFetch.mockResolvedValueOnce([])
+    apiFetch.mockResolvedValueOnce(emptySummary)
 
     render(<HomePage />)
 
@@ -146,8 +139,7 @@ describe('HomePage', () => {
   })
 
   it('主要リンクが期待するページへ向いている', async () => {
-    apiFetch.mockResolvedValueOnce([])
-    apiFetch.mockResolvedValueOnce([])
+    apiFetch.mockResolvedValueOnce(emptySummary)
 
     render(<HomePage />)
 
@@ -161,8 +153,7 @@ describe('HomePage', () => {
   })
 
   it('釣果 0 件で空状態の案内が出る', async () => {
-    apiFetch.mockResolvedValueOnce([])
-    apiFetch.mockResolvedValueOnce([])
+    apiFetch.mockResolvedValueOnce(emptySummary)
 
     render(<HomePage />)
 
@@ -172,7 +163,6 @@ describe('HomePage', () => {
   it('読み込み失敗時はエラーバナーを表示する', async () => {
     const { ApiError } = await import('@/lib/api')
     apiFetch.mockRejectedValueOnce(new ApiError(500, '取得失敗'))
-    apiFetch.mockResolvedValueOnce([])
 
     render(<HomePage />)
 

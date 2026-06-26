@@ -181,6 +181,72 @@ def test_list_catches_with_range_filters(client, fake_db):
     assert ("lte", ("weight_g", 500.0), {}) in ops
 
 
+def test_catch_summary_aggregates_with_bounded_queries(client, fake_db):
+    """ホーム集計は全件ページングではなく count / 当月 / limit クエリで返す (#72)。"""
+    from jst import jst_today
+
+    today_iso = jst_today().isoformat()
+
+    # 1. lifetime count (head)
+    fake_db.queue_result([], count=12)
+    # 2. 当月 sessions + catches
+    fake_db.queue_result(
+        [
+            {
+                "date": today_iso,
+                "catches": [
+                    {"weight_g": 500, "length_cm": 30},
+                    {"weight_g": 200, "length_cm": 25},
+                ],
+            },
+            {"date": "2000-01-15", "catches": [{"weight_g": 100, "length_cm": 20}]},
+        ]
+    )
+    # 3. 最大サイズ
+    fake_db.queue_result([{"fish_species": "ヤマメ", "length_cm": 30}])
+    # 4. 最近 3 件
+    fake_db.queue_result([{"id": "c1", "fish_species": "ヤマメ"}])
+
+    res = client.get("/api/catches/stats/summary")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["lifetime_count"] == 12
+    assert body["month_count"] == 3
+    assert body["today"]["count"] == 2
+    assert body["today"]["total_weight_g"] == 700
+    assert body["today"]["max_length_cm"] == 30
+    assert body["max_catch"] == {"fish_species": "ヤマメ", "length_cm": 30}
+    assert body["recent"][0]["id"] == "c1"
+
+    tables = [c["table"] for c in fake_db.calls]
+    assert tables == ["catches", "sessions", "catches", "catches"]
+    # 総数は count head で取得 (行を全件転送しない)
+    lifetime_ops = fake_db.calls[0]["ops"]
+    assert any(op[0] == "select" and op[2].get("count") == "exact" for op in lifetime_ops)
+    assert not any(op[0] == "range" for op in lifetime_ops)
+    # 最近の釣果は limit 3 (全件ページングではない)
+    assert ("limit", (3,), {}) in fake_db.calls[3]["ops"]
+
+
+def test_catch_summary_handles_empty(client, fake_db):
+    """釣果ゼロでも 200 で安全な空サマリを返す (#72)。"""
+    fake_db.queue_result([], count=0)  # lifetime
+    fake_db.queue_result([])  # month
+    fake_db.queue_result([])  # max
+    fake_db.queue_result([])  # recent
+
+    res = client.get("/api/catches/stats/summary")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["lifetime_count"] == 0
+    assert body["month_count"] == 0
+    assert body["today"] == {"count": 0, "total_weight_g": 0, "max_length_cm": None}
+    assert body["max_catch"] is None
+    assert body["recent"] == []
+
+
 def test_get_catch_found(client, fake_db):
     fake_db.queue_result([{"id": "c1", "fish_species": "ヤマメ"}])
 
