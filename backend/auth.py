@@ -4,12 +4,12 @@ import httpx
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from supabase import AuthApiError, AuthRetryableError, Client, create_client
+from postgrest import SyncPostgrestClient
+from supabase import AuthApiError, AuthRetryableError
 
 from supabase_client import (
-    SUPABASE_ANON_KEY,
     SUPABASE_JWT_SECRET,
-    SUPABASE_URL,
+    create_user_postgrest,
     supabase,
 )
 
@@ -70,9 +70,9 @@ def get_current_user(
 
 def get_supabase(
     credentials: HTTPAuthorizationCredentials | None = Security(security),
-) -> Client:
+) -> SyncPostgrestClient:
     credentials = _require_credentials(credentials)
-    # PostgRESTにユーザーJWTを渡すことで auth.uid() が解決され RLS が効く
-    client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    client.postgrest.auth(credentials.credentials)
-    return client
+    # PostgREST にユーザー JWT を渡すことで auth.uid() が解決され RLS が効く。
+    # 共有接続プールを使う薄い PostgREST クライアントを返す (リクエスト毎の
+    # フルクライアント生成によるコネクションリークを避ける / #70)。
+    return create_user_postgrest(credentials.credentials)
