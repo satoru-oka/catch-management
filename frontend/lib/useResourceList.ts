@@ -99,7 +99,10 @@ export function useResourceList<T extends { id: string }, F extends Record<strin
     if (!confirm(deleteConfirm)) return
     try {
       await apiFetch(`${endpoint}/${id}`, { method: 'DELETE' })
-      setItems((current) => current.filter((item) => item.id !== id))
+      // ローカル配列から除くだけだと、loadMore の offset (= items.length) と
+      // hasMore がサーバ状態とずれ、次ページで重複・欠落が起こり得る。
+      // 先頭ページから取り直して状態を一貫させる (#73)。
+      await reload()
     } catch (e) {
       alert(e instanceof ApiError ? e.detail : '削除に失敗しました')
     }

@@ -1,7 +1,14 @@
 import { createClient } from '@/lib/supabase'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL
 export const UNAUTHORIZED_EVENT = 'auth:unauthorized'
+
+export function getRequiredApiUrl(env: NodeJS.ProcessEnv = process.env): string {
+  const url = env.NEXT_PUBLIC_API_URL
+  if (!url) {
+    throw new Error('NEXT_PUBLIC_API_URL が設定されていません')
+  }
+  return url
+}
 
 export class ApiError extends Error {
   status: number
@@ -34,7 +41,7 @@ export async function apiFetch<T = unknown>(
     throw new ApiError(401, 'Not authenticated')
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${getRequiredApiUrl()}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',

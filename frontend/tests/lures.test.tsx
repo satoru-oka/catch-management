@@ -152,9 +152,10 @@ describe('LuresPage', () => {
     })
   })
 
-  it('削除ボタン: confirm 受諾で DELETE され UI から消える', async () => {
-    apiFetch.mockResolvedValueOnce([baseLure])
-    apiFetch.mockResolvedValueOnce(undefined)
+  it('削除ボタン: confirm 受諾で DELETE し、削除後に reload して UI から消える', async () => {
+    apiFetch.mockResolvedValueOnce([baseLure]) // 初期 list
+    apiFetch.mockResolvedValueOnce(undefined) // DELETE
+    apiFetch.mockResolvedValueOnce([]) // 削除後の reload (#73)
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<LuresPage />)
     await screen.findByText('Dコンタクト63')
@@ -163,7 +164,10 @@ describe('LuresPage', () => {
     await user.click(screen.getByRole('button', { name: '削除' }))
 
     await waitFor(() => {
-      expect(apiFetch).toHaveBeenLastCalledWith('/api/lures/l1', { method: 'DELETE' })
+      expect(apiFetch).toHaveBeenCalledWith('/api/lures/l1', { method: 'DELETE' })
+    })
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenLastCalledWith('/api/lures?limit=50&offset=0')
     })
     await waitFor(() =>
       expect(screen.queryByText('Dコンタクト63')).not.toBeInTheDocument(),
