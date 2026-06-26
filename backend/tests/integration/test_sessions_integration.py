@@ -70,6 +70,62 @@ def test_monthly_stats_aggregates_real_data(auth_client):
 
 
 @pytest.mark.integration
+def test_create_session_without_spot_keeps_water_type_not_null(auth_client):
+    """spot_id なしで session を作成でき、water_type が NOT NULL を維持する (#77)。"""
+    res = auth_client.post("/api/sessions/", json={"date": "2026-08-01"})
+    assert res.status_code == 200, res.text
+    session = res.json()
+    assert session.get("spot_id") is None
+    # migration 001/003 適用環境では water_type が既定値で埋まる。
+    assert session.get("water_type") is not None
+
+
+@pytest.mark.integration
+def test_delete_spot_nulls_session_spot_and_keeps_water_type(auth_client):
+    """session が紐づく spot を削除でき、spot_id は NULL・water_type は NOT NULL (#77)。"""
+    spot = auth_client.post("/api/spots/", json={"name": "削除予定ポイント"}).json()
+    session = auth_client.post(
+        "/api/sessions/", json={"spot_id": spot["id"], "date": "2026-08-02"}
+    ).json()
+
+    # ON DELETE SET NULL が走る。トリガーが water_type を NULL にすると NOT NULL 違反で
+    # ここが失敗する。
+    res = auth_client.delete(f"/api/spots/{spot['id']}")
+    assert res.status_code == 200, res.text
+
+    body = auth_client.get(f"/api/sessions/{session['id']}").json()
+    assert body["spot_id"] is None
+    assert body.get("water_type") is not None
+
+
+@pytest.mark.integration
+def test_spot_water_type_change_syncs_existing_sessions(auth_client, admin_supabase):
+    """spot の water_type 変更が既存 sessions に同期され、不整合メトリクスはクリアされる (#77)。
+
+    spots.water_type は API 非公開のため admin (service_role) で直接更新する。
+    """
+    spot = auth_client.post("/api/spots/", json={"name": "再分類ポイント"}).json()
+    # freshwater 既定。淡水で許可される water_level を入れておく。
+    session = auth_client.post(
+        "/api/sessions/",
+        json={"spot_id": spot["id"], "date": "2026-08-03", "water_level": "平水"},
+    ).json()
+
+    before = auth_client.get(f"/api/sessions/{session['id']}").json()
+    assert before["water_type"] == "freshwater"
+    assert before["water_level"] == "平水"
+
+    # spot を海に再分類 -> 既存 session へ同期 + 海で禁止の water_level がクリアされる。
+    admin_supabase.table("spots").update({"water_type": "sea"}).eq(
+        "id", spot["id"]
+    ).execute()
+
+    after = auth_client.get(f"/api/sessions/{session['id']}").json()
+    assert after["water_type"] == "sea"
+    assert after["water_level"] is None
+
+
+@pytest.mark.integration
 def test_rls_blocks_other_users_session(
     auth_client, second_user, admin_supabase
 ):
