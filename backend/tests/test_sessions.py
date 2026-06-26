@@ -8,12 +8,14 @@ from .conftest import TEST_USER_ID
 def test_list_sessions(client, fake_db):
     fake_db.queue_result([{"id": "ses1", "date": "2026-05-01"}])
 
-    res = client.get("/api/sessions/")
+    res = client.get("/api/sessions")
 
     assert res.status_code == 200
     assert res.json()[0]["id"] == "ses1"
     ops = fake_db.calls[0]["ops"]
     assert any(op[0] == "order" and op[1] == ("date",) and op[2] == {"desc": True} for op in ops)
+    # id タイブレーカーでページ間の重複・欠落を防ぐ (#71)
+    assert any(op[0] == "order" and op[1] == ("id",) for op in ops)
     assert ("range", (0, 49), {}) in ops
 
 
@@ -37,7 +39,7 @@ def test_create_session_normalizes_date_and_time(client, fake_db):
     fake_db.queue_result([{"id": "ses1", "date": "2026-05-06"}])
 
     res = client.post(
-        "/api/sessions/",
+        "/api/sessions",
         json={
             "date": "2026-05-06",
             "start_time": "06:30:00",
@@ -61,7 +63,7 @@ def test_create_session_drops_optional_none(client, fake_db):
     fake_db.queue_result([{"id": "ses1"}])
 
     client.post(
-        "/api/sessions/",
+        "/api/sessions",
         json={"date": "2026-05-06"},  # spot_id, time 等は未指定
     )
 
@@ -73,7 +75,7 @@ def test_create_session_drops_optional_none(client, fake_db):
 
 
 def test_create_session_validation_error_on_missing_date(client):
-    res = client.post("/api/sessions/", json={})
+    res = client.post("/api/sessions", json={})
     assert res.status_code == 422
 
 

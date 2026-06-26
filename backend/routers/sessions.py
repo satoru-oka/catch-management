@@ -39,7 +39,7 @@ class SessionUpdate(BaseModel):
     notes: str | None = None
 
 
-@router.get("/")
+@router.get("")
 def list_sessions(
     db: Client = Depends(get_supabase),
     limit: int = Query(50, ge=1, le=200),
@@ -49,13 +49,14 @@ def list_sessions(
         db.table("sessions")
         .select("*, spots(name, river_name)")
         .order("date", desc=True)
+        .order("id")  # 同一 date でもページ間で安定するようタイブレーカーを付ける (#71)
         .range(offset, offset + limit - 1)
         .execute()
     )
     return result.data
 
 
-@router.post("/")
+@router.post("")
 def create_session(
     session: SessionCreate,
     db: Client = Depends(get_supabase),

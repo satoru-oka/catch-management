@@ -24,7 +24,7 @@ class SpotUpdate(BaseModel):
     notes: str | None = None
 
 
-@router.get("/")
+@router.get("")
 def list_spots(
     db: Client = Depends(get_supabase),
     limit: int = Query(50, ge=1, le=200),
@@ -34,13 +34,14 @@ def list_spots(
         db.table("spots")
         .select("*")
         .order("name")
+        .order("id")  # 同名でもページ間で安定するようタイブレーカーを付ける (#71)
         .range(offset, offset + limit - 1)
         .execute()
     )
     return result.data
 
 
-@router.post("/")
+@router.post("")
 def create_spot(
     spot: SpotCreate,
     db: Client = Depends(get_supabase),
@@ -95,6 +96,7 @@ def list_spot_sessions(
         .select("*")
         .eq("spot_id", spot_id)
         .order("date", desc=True)
+        .order("id")  # 同一 date でもページ間で安定するようタイブレーカーを付ける (#71)
         .range(offset, offset + limit - 1)
         .execute()
     )
