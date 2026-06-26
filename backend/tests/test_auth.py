@@ -199,23 +199,20 @@ def test_get_supabase_attaches_user_token(monkeypatch):
         def auth(self, token):
             captured["token"] = token
 
-    class FakeClient:
-        def __init__(self):
-            self.postgrest = FakePostgrest()
+    def fake_create_user_postgrest(token):
+        captured["arg"] = token
+        client = FakePostgrest()
+        client.auth(token)
+        return client
 
-    def fake_create_client(url, key):
-        captured["url"] = url
-        captured["key"] = key
-        return FakeClient()
-
-    monkeypatch.setattr(auth, "create_client", fake_create_client)
+    # get_supabase は supabase_client.create_user_postgrest に委譲する (#70)。
+    monkeypatch.setattr(auth, "create_user_postgrest", fake_create_user_postgrest)
 
     client = auth.get_supabase(_creds("user-jwt"))
 
+    assert captured["arg"] == "user-jwt"
     assert captured["token"] == "user-jwt"
-    assert captured["url"] == auth.SUPABASE_URL
-    assert captured["key"] == auth.SUPABASE_ANON_KEY
-    assert isinstance(client, FakeClient)
+    assert isinstance(client, FakePostgrest)
 
 
 def test_get_supabase_without_credentials_raises_401():

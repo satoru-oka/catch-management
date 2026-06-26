@@ -107,12 +107,13 @@ def _patch_supabase_module():
     import auth
     import supabase_client
 
+    # get_supabase は supabase_client.create_user_postgrest 経由で
+    # supabase_client.SUPABASE_URL / SUPABASE_ANON_KEY を呼び出し時参照する (#70)。
+    # 認証 (get_current_user) は auth.supabase / auth.SUPABASE_JWT_SECRET を使う。
     original = {
         "db_url": supabase_client.SUPABASE_URL,
         "db_key": supabase_client.SUPABASE_ANON_KEY,
         "db_client": supabase_client.supabase,
-        "auth_url": auth.SUPABASE_URL,
-        "auth_key": auth.SUPABASE_ANON_KEY,
         "auth_client": auth.supabase,
         "auth_jwt_secret": auth.SUPABASE_JWT_SECRET,
     }
@@ -124,8 +125,6 @@ def _patch_supabase_module():
     supabase_client.SUPABASE_URL = test_url
     supabase_client.SUPABASE_ANON_KEY = test_anon
     supabase_client.supabase = real_client
-    auth.SUPABASE_URL = test_url
-    auth.SUPABASE_ANON_KEY = test_anon
     auth.supabase = real_client
     # Integration tests obtain real Supabase tokens, but the JWT secret is not
     # part of the current test secret set. Fall back to Supabase Auth API here.
@@ -137,8 +136,6 @@ def _patch_supabase_module():
         supabase_client.SUPABASE_URL = original["db_url"]
         supabase_client.SUPABASE_ANON_KEY = original["db_key"]
         supabase_client.supabase = original["db_client"]
-        auth.SUPABASE_URL = original["auth_url"]
-        auth.SUPABASE_ANON_KEY = original["auth_key"]
         auth.supabase = original["auth_client"]
         auth.SUPABASE_JWT_SECRET = original["auth_jwt_secret"]
 
