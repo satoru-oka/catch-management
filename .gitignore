@@ -34,6 +34,14 @@ build/
 dist/
 *.egg-info/
 
+# Next.js build output (compiled bundles embed the public anon key)
+.next/
+frontend/.next/
+out/
+frontend/out/
+node_modules/
+frontend/node_modules/
+
 # Logs
 *.log
 
