@@ -6,6 +6,7 @@ from supabase import Client
 
 from api_helpers import assert_found, first_or_404
 from auth import get_current_user, get_supabase
+from jst import jst_day_end_utc_iso, jst_day_start_utc_iso, to_utc_iso
 
 router = APIRouter(prefix="/api", tags=["catches"])
 
@@ -46,14 +47,6 @@ def _escape_ilike(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
 
 
-def _date_start_iso(value: dt.date) -> str:
-    return dt.datetime.combine(value, dt.time.min).isoformat()
-
-
-def _date_end_iso(value: dt.date) -> str:
-    return dt.datetime.combine(value, dt.time.max).isoformat()
-
-
 @router.post("/sessions/{session_id}/catches")
 def create_catch(
     session_id: str,
@@ -66,6 +59,9 @@ def create_catch(
     assert_found(session.data, "釣行が見つかりません")
     validate_lure_id(catch.lure_id, db)
     data = catch.model_dump(mode="json", exclude_none=True)
+    # caught_at は常に UTC で保存する。naive 入力は JST とみなす (#68)。
+    if catch.caught_at is not None:
+        data["caught_at"] = to_utc_iso(catch.caught_at)
     data["session_id"] = session_id
     result = db.table("catches").insert(data).execute()
     return result.data[0]
@@ -90,10 +86,12 @@ def list_catches(
         query = query.eq("fish_species", fish_species)
     if lure_name:
         query = query.ilike("lure_name", f"%{_escape_ilike(lure_name)}%")
+    # date_from/date_to は JST の暦日。caught_at は UTC 保存なので JST の 1 日を
+    # UTC 範囲に変換して比較する (#68)。
     if date_from:
-        query = query.gte("caught_at", _date_start_iso(date_from))
+        query = query.gte("caught_at", jst_day_start_utc_iso(date_from))
     if date_to:
-        query = query.lte("caught_at", _date_end_iso(date_to))
+        query = query.lte("caught_at", jst_day_end_utc_iso(date_to))
     if length_min is not None:
         query = query.gte("length_cm", length_min)
     if length_max is not None:
@@ -129,6 +127,9 @@ def update_catch(
         raise HTTPException(status_code=422, detail="更新するフィールドがありません")
     if data.get("lure_id") is not None:
         validate_lure_id(data["lure_id"], db)
+    # caught_at は常に UTC で保存する。naive 入力は JST とみなす (#68)。
+    if catch.caught_at is not None:
+        data["caught_at"] = to_utc_iso(catch.caught_at)
     result = db.table("catches").update(data).eq("id", catch_id).execute()
     return first_or_404(result.data, "釣果が見つかりません")
 
