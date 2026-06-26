@@ -2,9 +2,26 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 
 import pytest
+
+
+def _direct_postgrest_client(access_token: str):
+    """FastAPI を経由せず PostgREST を直接叩くユーザー認証済みクライアント。
+
+    anon key + ユーザー JWT という、ブラウザから到達可能な経路を再現する。
+    アプリ層 (FastAPI) のバリデーションを回避するので、純粋に RLS だけが
+    境界になることを検証できる。
+    """
+    from supabase import create_client
+
+    client = create_client(
+        os.environ["TEST_SUPABASE_URL"], os.environ["TEST_SUPABASE_ANON_KEY"]
+    )
+    client.postgrest.auth(access_token)
+    return client
 
 
 def _create_user_scoped_records(auth_client):
@@ -96,3 +113,80 @@ def test_cross_tenant_rls_smoke_for_user_scoped_tables(auth_client, second_auth_
     lure_stats = second_auth_client.get("/api/lures/stats")
     assert lure_stats.status_code == 200
     assert lure_name not in lure_stats.json()
+
+
+@pytest.mark.integration
+def test_postgrest_direct_insert_with_foreign_lure_blocked_by_rls(
+    auth_client, integration_user, second_auth_client, second_user
+):
+    """PostgREST 直叩きで「自分の session に他人の lure_id」を insert できないこと (#66)。
+
+    FastAPI を経由しないので validate_lure_id は効かない。catches の WITH CHECK が
+    lure 所有権を担保しているかを純粋に検証する。
+    """
+    suffix = uuid.uuid4().hex[:8]
+
+    # user A (integration_user) が所有する lure
+    a_lure = auth_client.post(
+        "/api/lures/",
+        json={"name": f"A所有ミノー-{suffix}", "type": "ミノー"},
+    ).json()
+
+    # user B (second_user) が所有する session
+    b_spot = second_auth_client.post(
+        "/api/spots/", json={"name": f"B所有ポイント-{suffix}"}
+    ).json()
+    b_session = second_auth_client.post(
+        "/api/sessions/",
+        json={"spot_id": b_spot["id"], "date": "2026-07-11"},
+    ).json()
+
+    # user B が PostgREST を直叩きして、自分の session に A の lure_id を付けた
+    # catch を insert しようとする -> RLS の WITH CHECK で拒否される。
+    db_b = _direct_postgrest_client(second_user["access_token"])
+
+    with pytest.raises(Exception):  # APIError (row-level security violation)
+        db_b.table("catches").insert(
+            {
+                "session_id": b_session["id"],
+                "fish_species": "ニジマス",
+                "lure_id": a_lure["id"],
+            }
+        ).execute()
+
+    # 念のため: 自分の lure (lure_id なし) なら直叩きでも insert できる = 正常系
+    ok = (
+        db_b.table("catches")
+        .insert(
+            {
+                "session_id": b_session["id"],
+                "fish_species": "ニジマス",
+                "lure_id": None,
+            }
+        )
+        .execute()
+    )
+    assert ok.data and ok.data[0]["session_id"] == b_session["id"]
+
+
+@pytest.mark.integration
+def test_postgrest_direct_insert_into_foreign_session_blocked_by_rls(
+    auth_client, integration_user, second_user
+):
+    """PostgREST 直叩きで「他人の session」に catch を insert できないこと (#66)。"""
+    suffix = uuid.uuid4().hex[:8]
+
+    a_spot = auth_client.post(
+        "/api/spots/", json={"name": f"A所有ポイント-{suffix}"}
+    ).json()
+    a_session = auth_client.post(
+        "/api/sessions/",
+        json={"spot_id": a_spot["id"], "date": "2026-07-12"},
+    ).json()
+
+    db_b = _direct_postgrest_client(second_user["access_token"])
+
+    with pytest.raises(Exception):  # APIError (row-level security violation)
+        db_b.table("catches").insert(
+            {"session_id": a_session["id"], "fish_species": "横取り"}
+        ).execute()

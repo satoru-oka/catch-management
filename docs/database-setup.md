@@ -96,11 +96,38 @@ CREATE POLICY "sessions_own" ON sessions
 CREATE POLICY "lures_own" ON lures
   USING (auth.uid() = user_id);
 
-CREATE POLICY "catches_own" ON catches
-  USING (
-    session_id IN (
-      SELECT id FROM sessions WHERE user_id = auth.uid()
+-- catches は session 所有権に加えて lure 所有権も担保する (#66)。
+-- 詳細・再実行可能な定義は supabase/migrations/002_catches_ownership_rls.sql。
+CREATE POLICY "catches_select" ON catches
+  FOR SELECT USING (
+    session_id IN (SELECT id FROM sessions WHERE user_id = auth.uid())
+  );
+
+CREATE POLICY "catches_insert" ON catches
+  FOR INSERT WITH CHECK (
+    session_id IN (SELECT id FROM sessions WHERE user_id = auth.uid())
+    AND (
+      lure_id IS NULL
+      OR EXISTS (SELECT 1 FROM lures WHERE lures.id = lure_id AND lures.user_id = auth.uid())
     )
+  );
+
+CREATE POLICY "catches_update" ON catches
+  FOR UPDATE
+  USING (
+    session_id IN (SELECT id FROM sessions WHERE user_id = auth.uid())
+  )
+  WITH CHECK (
+    session_id IN (SELECT id FROM sessions WHERE user_id = auth.uid())
+    AND (
+      lure_id IS NULL
+      OR EXISTS (SELECT 1 FROM lures WHERE lures.id = lure_id AND lures.user_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "catches_delete" ON catches
+  FOR DELETE USING (
+    session_id IN (SELECT id FROM sessions WHERE user_id = auth.uid())
   );
 ```
 
