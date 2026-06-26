@@ -8,13 +8,15 @@ from .conftest import TEST_USER_ID
 def test_list_spots_returns_data(client, fake_db):
     fake_db.queue_result([{"id": "s1", "name": "本流ポイント"}])
 
-    res = client.get("/api/spots/")
+    res = client.get("/api/spots")
 
     assert res.status_code == 200
     assert res.json() == [{"id": "s1", "name": "本流ポイント"}]
     assert fake_db.calls[0]["table"] == "spots"
     ops = fake_db.calls[0]["ops"]
     assert any(op[0] == "order" and op[1] == ("name",) for op in ops)
+    # id タイブレーカーでページ間の重複・欠落を防ぐ (#71)
+    assert any(op[0] == "order" and op[1] == ("id",) for op in ops)
     assert ("range", (0, 49), {}) in ops
 
 
@@ -37,7 +39,7 @@ def test_list_spots_rejects_limit_over_max(client):
 def test_list_spots_empty(client, fake_db):
     fake_db.queue_result([])
 
-    res = client.get("/api/spots/")
+    res = client.get("/api/spots")
 
     assert res.status_code == 200
     assert res.json() == []
@@ -47,7 +49,7 @@ def test_create_spot_assigns_user_id(client, fake_db):
     fake_db.queue_result([{"id": "s1", "name": "新ポイント", "user_id": TEST_USER_ID}])
 
     res = client.post(
-        "/api/spots/",
+        "/api/spots",
         json={"name": "新ポイント", "river_name": "球磨川"},
     )
 
@@ -67,7 +69,7 @@ def test_create_spot_drops_optional_none(client, fake_db):
     fake_db.queue_result([{"id": "s1", "name": "新ポイント", "user_id": TEST_USER_ID}])
 
     res = client.post(
-        "/api/spots/",
+        "/api/spots",
         json={"name": "新ポイント", "river_name": None, "notes": None},
     )
 
@@ -164,6 +166,8 @@ def test_list_spot_sessions(client, fake_db):
     ops = fake_db.calls[0]["ops"]
     assert ("eq", ("spot_id", "s1"), {}) in ops
     assert any(op[0] == "order" and op[1] == ("date",) for op in ops)
+    # id タイブレーカーでページ間の重複・欠落を防ぐ (#71)
+    assert any(op[0] == "order" and op[1] == ("id",) for op in ops)
     assert ("range", (0, 49), {}) in ops
 
 

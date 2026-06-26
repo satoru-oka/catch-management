@@ -100,7 +100,13 @@ def list_catches(
         query = query.gte("weight_g", weight_min)
     if weight_max is not None:
         query = query.lte("weight_g", weight_max)
-    result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    # 同一 created_at でもページ間で安定するよう id をタイブレーカーに付ける (#71)
+    result = (
+        query.order("created_at", desc=True)
+        .order("id")
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
     return result.data
 
 

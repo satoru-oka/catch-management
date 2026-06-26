@@ -103,6 +103,8 @@ def test_list_catches_no_filters(client, fake_db):
     # フィルタ未指定なら eq/ilike は呼ばれない
     assert not any(op[0] in ("eq", "ilike") for op in ops)
     assert any(op[0] == "order" and op[1] == ("created_at",) for op in ops)
+    # id タイブレーカーでページ間の重複・欠落を防ぐ (#71)
+    assert any(op[0] == "order" and op[1] == ("id",) for op in ops)
     assert ("range", (0, 49), {}) in ops
 
 

@@ -29,7 +29,7 @@ class LureUpdate(BaseModel):
     notes: str | None = None
 
 
-@router.get("/")
+@router.get("")
 def list_lures(
     db: Client = Depends(get_supabase),
     limit: int = Query(50, ge=1, le=200),
@@ -39,13 +39,14 @@ def list_lures(
         db.table("lures")
         .select("*")
         .order("name")
+        .order("id")  # 同名でもページ間で安定するようタイブレーカーを付ける (#71)
         .range(offset, offset + limit - 1)
         .execute()
     )
     return result.data
 
 
-@router.post("/")
+@router.post("")
 def create_lure(
     lure: LureCreate,
     db: Client = Depends(get_supabase),

@@ -8,12 +8,14 @@ from .conftest import TEST_USER_ID
 def test_list_lures(client, fake_db):
     fake_db.queue_result([{"id": "l1", "name": "ミノー"}])
 
-    res = client.get("/api/lures/")
+    res = client.get("/api/lures")
 
     assert res.status_code == 200
     assert res.json()[0]["name"] == "ミノー"
     ops = fake_db.calls[0]["ops"]
     assert any(op[0] == "order" and op[1] == ("name",) for op in ops)
+    # id タイブレーカーでページ間の重複・欠落を防ぐ (#71)
+    assert any(op[0] == "order" and op[1] == ("id",) for op in ops)
     assert ("range", (0, 49), {}) in ops
 
 
@@ -37,7 +39,7 @@ def test_create_lure_assigns_user_id(client, fake_db):
     fake_db.queue_result([{"id": "l1", "name": "新ルアー", "user_id": TEST_USER_ID}])
 
     res = client.post(
-        "/api/lures/",
+        "/api/lures",
         json={"name": "新ルアー", "type": "スプーン", "weight_g": 3.5},
     )
 
@@ -56,7 +58,7 @@ def test_create_lure_assigns_user_id(client, fake_db):
 def test_create_lure_drops_none_fields(client, fake_db):
     fake_db.queue_result([{"id": "l1", "name": "ルアーX"}])
 
-    client.post("/api/lures/", json={"name": "ルアーX"})
+    client.post("/api/lures", json={"name": "ルアーX"})
 
     insert_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "insert")
     inserted = insert_op[1][0]
@@ -66,7 +68,7 @@ def test_create_lure_drops_none_fields(client, fake_db):
 
 
 def test_create_lure_validation_requires_name(client):
-    res = client.post("/api/lures/", json={})
+    res = client.post("/api/lures", json={})
     assert res.status_code == 422
 
 
