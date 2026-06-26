@@ -38,8 +38,9 @@ def test_create_catch_attaches_session_id(client, fake_db):
     assert inserted["session_id"] == "ses1"
     assert inserted["fish_species"] == "ヤマメ"
     assert inserted["length_cm"] == 22.5
-    # caught_at は文字列化される
+    # caught_at は UTC で保存される。naive 入力 (07:30 JST) は -9h されて UTC に (#68)。
     assert isinstance(inserted["caught_at"], str)
+    assert inserted["caught_at"] == "2026-05-05T22:30:00+00:00"
 
 
 def test_create_catch_rejects_unknown_lure_id(client, fake_db):
@@ -168,8 +169,10 @@ def test_list_catches_with_range_filters(client, fake_db):
 
     assert res.status_code == 200
     ops = fake_db.calls[0]["ops"]
-    assert ("gte", ("caught_at", "2026-05-01T00:00:00"), {}) in ops
-    assert ("lte", ("caught_at", "2026-05-31T23:59:59.999999"), {}) in ops
+    # JST の暦日を UTC 範囲に変換して比較する (#68)。
+    # 2026-05-01 JST 00:00 = 2026-04-30T15:00Z / 2026-05-31 JST 23:59:59.999999 = 同日 14:59:59.999999Z
+    assert ("gte", ("caught_at", "2026-04-30T15:00:00+00:00"), {}) in ops
+    assert ("lte", ("caught_at", "2026-05-31T14:59:59.999999+00:00"), {}) in ops
     assert ("gte", ("length_cm", 20.0), {}) in ops
     assert ("lte", ("length_cm", 40.0), {}) in ops
     assert ("gte", ("weight_g", 100.0), {}) in ops
@@ -249,7 +252,23 @@ def test_update_catch_stringifies_caught_at(client, fake_db):
 
     assert res.status_code == 200
     update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
-    assert isinstance(update_op[1][0]["caught_at"], str)
+    # naive 入力 (08:00 JST) は UTC に変換される (#68)。
+    assert update_op[1][0]["caught_at"] == "2026-05-05T23:00:00+00:00"
+
+
+def test_create_catch_honors_tz_aware_caught_at(client, fake_db):
+    """TZ 付きで送られた caught_at はそのまま UTC へ変換される (#68)。"""
+    fake_db.queue_result([{"id": "ses1"}])  # session 存在チェック
+    fake_db.queue_result([{"id": "c1", "session_id": "ses1"}])
+
+    res = client.post(
+        "/api/sessions/ses1/catches",
+        json={"fish_species": "ヤマメ", "caught_at": "2026-05-06T07:30:00+09:00"},
+    )
+
+    assert res.status_code == 200
+    insert_op = next(op for op in fake_db.calls[1]["ops"] if op[0] == "insert")
+    assert insert_op[1][0]["caught_at"] == "2026-05-05T22:30:00+00:00"
 
 
 def test_update_catch_not_found(client, fake_db):
