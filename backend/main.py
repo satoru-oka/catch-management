@@ -8,6 +8,15 @@ from postgrest.exceptions import APIError as PostgrestAPIError
 
 from routers import catches, lures, sessions, spots
 
+# 実行環境によっては root logger にハンドラが無く、logger.exception の出力が
+# どこにも出ない可能性がある。uvicorn のログと整合する形で ERROR 以上を確実に
+# stderr へ出す。LOG_LEVEL env で上書き可能 (既定 INFO)。既にハンドラがある
+# 場合 (uvicorn 配下等) は basicConfig が no-op になるので安全。
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="釣果管理アプリ API")
