@@ -47,6 +47,20 @@ describe('getRequiredApiUrl', () => {
       /NEXT_PUBLIC_API_URL/,
     )
   })
+
+  it('apiFetch は API_URL 未設定時にエラーを投げ fetch しない (#73)', async () => {
+    getSession.mockResolvedValue({ data: { session: { access_token: 'tok' } } })
+    const fetchMock = mockFetch({ ok: true, status: 200, jsonBody: {} })
+    const original = process.env.NEXT_PUBLIC_API_URL
+    delete process.env.NEXT_PUBLIC_API_URL
+
+    try {
+      await expect(apiFetch('/api/spots/')).rejects.toThrow(/NEXT_PUBLIC_API_URL/)
+      expect(fetchMock).not.toHaveBeenCalled()
+    } finally {
+      process.env.NEXT_PUBLIC_API_URL = original
+    }
+  })
 })
 
 describe('apiFetch', () => {
