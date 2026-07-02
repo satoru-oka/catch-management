@@ -2,14 +2,6 @@ import { createClient } from '@/lib/supabase'
 
 export const UNAUTHORIZED_EVENT = 'auth:unauthorized'
 
-export function getRequiredApiUrl(env: NodeJS.ProcessEnv = process.env): string {
-  const url = env.NEXT_PUBLIC_API_URL
-  if (!url) {
-    throw new Error('NEXT_PUBLIC_API_URL が設定されていません')
-  }
-  return url
-}
-
 export class ApiError extends Error {
   status: number
   detail: string
@@ -18,6 +10,20 @@ export class ApiError extends Error {
     this.status = status
     this.detail = detail
   }
+}
+
+// NEXT_PUBLIC_* は `process.env.NEXT_PUBLIC_API_URL` という字句で参照した箇所だけが
+// next build 時にブラウザバンドルへインライン展開される。`const env = process.env` の
+// ようにエイリアス経由で読むと展開されず、本番ブラウザでは undefined になり全 API 呼び
+// 出しが失敗する (next/dist/docs .../environment-variables.md 参照)。必ず字句どおり参照する。
+// また失敗は ApiError で投げ、呼び出し側の `catch((e: ApiError) => setError(e.detail))`
+// が undefined（空表示）にならないようにする。
+export function getRequiredApiUrl(): string {
+  const url = process.env.NEXT_PUBLIC_API_URL
+  if (!url) {
+    throw new ApiError(0, 'NEXT_PUBLIC_API_URL が設定されていません')
+  }
+  return url
 }
 
 async function getToken() {

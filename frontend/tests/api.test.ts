@@ -36,16 +36,34 @@ function mockFetch(response: Partial<Response> & { jsonBody?: unknown }) {
 }
 
 describe('getRequiredApiUrl', () => {
+  // getRequiredApiUrl は Next.js のインライン展開が効くよう `process.env.NEXT_PUBLIC_API_URL`
+  // を字句どおり読む。テストでは process.env を直接操作して検証する。
   it('NEXT_PUBLIC_API_URL があれば返す', () => {
-    expect(getRequiredApiUrl({ NEXT_PUBLIC_API_URL: 'https://x.example' } as NodeJS.ProcessEnv)).toBe(
-      'https://x.example',
-    )
+    const original = process.env.NEXT_PUBLIC_API_URL
+    process.env.NEXT_PUBLIC_API_URL = 'https://x.example'
+    try {
+      expect(getRequiredApiUrl()).toBe('https://x.example')
+    } finally {
+      process.env.NEXT_PUBLIC_API_URL = original
+    }
   })
 
-  it('未設定なら明示的なエラーを投げる (fetch("undefined/...") を防ぐ) (#73)', () => {
-    expect(() => getRequiredApiUrl({} as NodeJS.ProcessEnv)).toThrowError(
-      /NEXT_PUBLIC_API_URL/,
-    )
+  it('未設定なら ApiError を投げ e.detail を埋める (fetch("undefined/...") 防止, #73)', () => {
+    const original = process.env.NEXT_PUBLIC_API_URL
+    delete process.env.NEXT_PUBLIC_API_URL
+    try {
+      let thrown: unknown
+      try {
+        getRequiredApiUrl()
+      } catch (e) {
+        thrown = e
+      }
+      // 呼び出し側は catch((e: ApiError) => setError(e.detail)) なので ApiError であること
+      expect(thrown).toBeInstanceOf(ApiError)
+      expect((thrown as ApiError).detail).toMatch(/NEXT_PUBLIC_API_URL/)
+    } finally {
+      process.env.NEXT_PUBLIC_API_URL = original
+    }
   })
 
   it('apiFetch は API_URL 未設定時にエラーを投げ fetch しない (#73)', async () => {
