@@ -9,16 +9,30 @@ from postgrest.exceptions import APIError as PostgrestAPIError
 
 from routers import catches, lures, sessions, spots
 
-# 実行環境によっては root logger にハンドラが無く、logger.exception の出力が
-# どこにも出ない可能性がある。uvicorn 起動時はそちらのハンドラが root に乗るので
-# 既存設定を尊重し、ハンドラが無い場合のみ stderr を追加して ERROR 以上を確実に
-# 出力する。LOG_LEVEL env で水準を上書き可能 (既定 INFO)。
-if not logging.getLogger().handlers:
+
+def _configure_fallback_logging() -> None:
+    """root logger が未設定の実行環境向けのフォールバックログ設定。
+
+    uvicorn は uvicorn / uvicorn.error / uvicorn.access の名前付きロガーだけを設定し、
+    root logger にはハンドラを付けない。そのため uvicorn 起動時でも root は未設定のまま
+    のことが多く、その場合アプリの ``logger.exception`` は logging.lastResort によって
+    WARNING 以上が素の形式で stderr に出るだけになる。ここでは root が未設定のときだけ
+    整形済みの stderr ハンドラを追加する（誰かが既に設定済みなら尊重して何もしない）。
+
+    既定水準は WARNING。アプリ側は ``logger.exception`` (ERROR) しか出さないため
+    これで取りこぼしは無く、httpx など第三者ライブラリの INFO ログで stderr を
+    溢れさせずに済む。詳細ログが要るときは LOG_LEVEL env で上書きする。
+    """
+    if logging.getLogger().handlers:
+        return
     logging.basicConfig(
-        level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        level=os.getenv("LOG_LEVEL", "WARNING").upper(),
         stream=sys.stderr,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+
+
+_configure_fallback_logging()
 
 logger = logging.getLogger(__name__)
 
