@@ -18,7 +18,16 @@ export function buildFormPayload<F extends Record<string, string>>(
       if (nullable.has(key)) payload[key] = null
       continue
     }
-    payload[key] = numbers.has(key) ? Number.parseFloat(value) : value
+    if (numbers.has(key)) {
+      const parsed = Number.parseFloat(value)
+      if (Number.isNaN(parsed)) {
+        if (nullable.has(key)) payload[key] = null
+        continue
+      }
+      payload[key] = parsed
+    } else {
+      payload[key] = value
+    }
   }
 
   return payload
