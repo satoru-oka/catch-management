@@ -152,9 +152,7 @@ def _create_user(admin) -> dict:
     )
     user_id = res.user.id
 
-    anon = create_client(
-        os.environ["TEST_SUPABASE_URL"], os.environ["TEST_SUPABASE_ANON_KEY"]
-    )
+    anon = create_client(os.environ["TEST_SUPABASE_URL"], os.environ["TEST_SUPABASE_ANON_KEY"])
     sign_in = anon.auth.sign_in_with_password({"email": email, "password": password})
 
     return {
