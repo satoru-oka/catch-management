@@ -191,3 +191,36 @@ def test_postgrest_direct_insert_into_foreign_session_blocked_by_rls(
         db_b.table("catches").insert(
             {"session_id": a_session["id"], "fish_species": "横取り"}
         ).execute()
+
+
+@pytest.mark.integration
+def test_postgrest_rejects_foreign_spot_on_session_insert_and_update(
+    auth_client, second_auth_client, second_user
+):
+    """APIを迂回しても他人のspotを自分のsessionへ紐付けられないこと (FISHMG-10)。"""
+    suffix = uuid.uuid4().hex[:8]
+    a_spot = auth_client.post(
+        "/api/spots/", json={"name": f"A所有ポイント-{suffix}"}
+    ).json()
+    b_spot = second_auth_client.post(
+        "/api/spots/", json={"name": f"B所有ポイント-{suffix}"}
+    ).json()
+    b_session = second_auth_client.post(
+        "/api/sessions/",
+        json={"spot_id": b_spot["id"], "date": "2026-07-13"},
+    ).json()
+    db_b = _direct_postgrest_client(second_user["access_token"])
+
+    with pytest.raises(PostgrestAPIError):
+        db_b.table("sessions").insert(
+            {
+                "user_id": second_user["user_id"],
+                "spot_id": a_spot["id"],
+                "date": "2026-07-14",
+            }
+        ).execute()
+
+    with pytest.raises(PostgrestAPIError):
+        db_b.table("sessions").update({"spot_id": a_spot["id"]}).eq(
+            "id", b_session["id"]
+        ).execute()
