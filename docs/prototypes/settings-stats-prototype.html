@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>マイページ — 実績表示プロトタイプ</title>
+<style>
+  :root {
+    --bg: #060d1c;
+    --surface: #0d1730;
+    --surface-2: #111d38;
+    --border: #22335c;
+    --text: #e9edf5;
+    --text-sub: #8fa3c7;
+    --coral: #e8734a;
+    --sun: #f0a84b;
+    --gold: #ffd166;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  .phone {
+    width: 100%;
+    max-width: 420px;
+    min-height: 100vh;
+    background: var(--bg);
+    padding: 0 16px 96px;
+  }
+
+  /* ヘッダー */
+  .screen-header {
+    padding: 20px 4px 14px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .screen-header h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.02em; }
+  .screen-header .asof {
+    font-size: 11px;
+    color: var(--text-sub);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .section-label {
+    font-size: 11px;
+    color: var(--text-sub);
+    letter-spacing: 0.12em;
+    margin: 22px 4px 8px;
+  }
+
+  /* 実績サマリ */
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .summary-card::before {
+    content: "";
+    display: block;
+    height: 3px;
+    background: linear-gradient(90deg, var(--coral), var(--sun) 55%, var(--gold));
+  }
+  .summary-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 14px 16px;
+  }
+  .summary-row + .summary-row { border-top: 1px solid var(--border); }
+  .summary-row .label { color: var(--text-sub); font-size: 13px; }
+  .summary-row .value {
+    font-variant-numeric: tabular-nums;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .summary-row .value .unit { font-size: 12px; font-weight: 500; color: var(--text-sub); margin-left: 2px; }
+  .summary-row .value .annual {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-sub);
+    margin-left: 8px;
+  }
+  .summary-row.hero .value { font-size: 26px; color: var(--gold); }
+
+  /* 魚種別実績カード */
+  .species-list { display: flex; flex-direction: column; gap: 8px; }
+  .species-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .species-card .top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .species-card .name { font-size: 15px; font-weight: 700; }
+  .species-card .best {
+    font-size: 12px;
+    color: var(--text-sub);
+    font-variant-numeric: tabular-nums;
+  }
+  .species-card .best b { color: var(--sun); font-size: 14px; font-weight: 700; }
+  .species-card .counts {
+    display: flex;
+    gap: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .species-card .counts .cell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .species-card .counts .cell + .cell { border-left: 1px solid var(--border); padding-left: 12px; }
+  .species-card .counts .k { font-size: 10px; color: var(--text-sub); letter-spacing: 0.06em; }
+  .species-card .counts .v { font-size: 16px; font-weight: 700; }
+  .species-card .counts .v .unit { font-size: 11px; font-weight: 500; color: var(--text-sub); }
+  .species-card .counts .v.none { color: var(--text-sub); font-weight: 500; }
+
+  .hidden-species { display: none; }
+  .species-list.expanded .hidden-species { display: block; }
+
+  .show-all {
+    width: 100%;
+    margin-top: 10px;
+    padding: 12px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    color: var(--text-sub);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .show-all:hover, .show-all:focus-visible { color: var(--gold); border-color: var(--gold); outline: none; }
+  .species-list.expanded + .show-all .more-label { display: none; }
+  .species-list.expanded + .show-all .less-label { display: inline; }
+  .less-label { display: none; }
+
+  /* 他の設定セクション（文脈用スタブ） */
+  .settings-group {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  .settings-row + .settings-row { border-top: 1px solid var(--border); }
+  .settings-row .meta { color: var(--text-sub); font-size: 12px; }
+  .settings-row .chevron { color: var(--text-sub); }
+
+  /* 下部タブバー（文脈用モック） */
+  .tabbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    display: flex;
+    justify-content: center;
+    background: rgba(6, 13, 28, 0.92);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+  }
+  .tabbar-inner {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    align-items: flex-end;
+    padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+  }
+  .tab {
+    flex: 1;
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-sub);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .tab .ico { font-size: 18px; }
+  .tab.active { color: var(--gold); }
+  .tab.fab-slot { position: relative; }
+  .fab {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, -18px);
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: var(--coral);
+    color: #fff;
+    font-size: 26px;
+    line-height: 52px;
+    box-shadow: 0 4px 14px rgba(232, 115, 74, 0.4);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .species-card, .summary-card { transition: border-color 0.15s ease; }
+  }
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <header class="screen-header">
+    <h1>マイページ</h1>
+    <span class="asof">2026/7/12 時点</span>
+  </header>
+
+  <div class="section-label">実績サマリ</div>
+  <div class="summary-card">
+    <div class="summary-row hero">
+      <span class="label">今年</span>
+      <span class="value">42<span class="unit">匹</span></span>
+    </div>
+    <div class="summary-row">
+      <span class="label">去年同時期</span>
+      <span class="value">51<span class="unit">匹</span><span class="annual">（年間 98匹）</span></span>
+    </div>
+    <div class="summary-row">
+      <span class="label">累計</span>
+      <span class="value">254<span class="unit">匹</span></span>
+    </div>
+  </div>
+
+  <div class="section-label">魚種別実績</div>
+  <div class="species-list" id="speciesList">
+
+    <div class="species-card">
+      <div class="top">
+        <span class="name">シーバス</span>
+        <span class="best">自己ベスト <b>91cm</b></span>
+      </div>
+      <div class="counts">
+        <div class="cell"><span class="k">今年</span><span class="v">12<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">去年同期</span><span class="v">15<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">累計</span><span class="v">82<span class="unit">匹</span></span></div>
+      </div>
+    </div>
+
+    <div class="species-card">
+      <div class="top">
+        <span class="name">マゴチ</span>
+        <span class="best">自己ベスト <b>68cm</b></span>
+      </div>
+      <div class="counts">
+        <div class="cell"><span class="k">今年</span><span class="v">8<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">去年同期</span><span class="v">5<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">累計</span><span class="v">41<span class="unit">匹</span></span></div>
+      </div>
+    </div>
+
+    <div class="species-card">
+      <div class="top">
+        <span class="name">クロダイ</span>
+        <span class="best">自己ベスト <b>45cm</b></span>
+      </div>
+      <div class="counts">
+        <div class="cell"><span class="k">今年</span><span class="v">6<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">去年同期</span><span class="v">9<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">累計</span><span class="v">35<span class="unit">匹</span></span></div>
+      </div>
+    </div>
+
+    <div class="species-card">
+      <div class="top">
+        <span class="name">キビレ</span>
+        <span class="best">自己ベスト <b>40cm</b></span>
+      </div>
+      <div class="counts">
+        <div class="cell"><span class="k">今年</span><span class="v">5<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">去年同期</span><span class="v">7<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">累計</span><span class="v">28<span class="unit">匹</span></span></div>
+      </div>
+    </div>
+
+    <div class="species-card">
+      <div class="top">
+        <span class="name">タチウオ</span>
+        <span class="best">自己ベスト <b>指4本</b></span>
+      </div>
+      <div class="counts">
+        <div class="cell"><span class="k">今年</span><span class="v">9<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">去年同期</span><span class="v none">—</span></div>
+        <div class="cell"><span class="k">累計</span><span class="v">24<span class="unit">匹</span></span></div>
+      </div>
+    </div>
+
+    <div class="species-card hidden-species">
+      <div class="top">
+        <span class="name">メバル</span>
+        <span class="best">自己ベスト <b>26cm</b></span>
+      </div>
+      <div class="counts">
+        <div class="cell"><span class="k">今年</span><span class="v">1<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">去年同期</span><span class="v">6<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">累計</span><span class="v">18<span class="unit">匹</span></span></div>
+      </div>
+    </div>
+
+    <div class="species-card hidden-species">
+      <div class="top">
+        <span class="name">アジ</span>
+        <span class="best">自己ベスト —</span>
+      </div>
+      <div class="counts">
+        <div class="cell"><span class="k">今年</span><span class="v">1<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">去年同期</span><span class="v">4<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">累計</span><span class="v">14<span class="unit">匹</span></span></div>
+      </div>
+    </div>
+
+    <div class="species-card hidden-species">
+      <div class="top">
+        <span class="name">カサゴ</span>
+        <span class="best">自己ベスト <b>22cm</b></span>
+      </div>
+      <div class="counts">
+        <div class="cell"><span class="k">今年</span><span class="v">0<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">去年同期</span><span class="v">3<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">累計</span><span class="v">8<span class="unit">匹</span></span></div>
+      </div>
+    </div>
+
+    <div class="species-card hidden-species">
+      <div class="top">
+        <span class="name">コチ</span>
+        <span class="best">自己ベスト <b>35cm</b></span>
+      </div>
+      <div class="counts">
+        <div class="cell"><span class="k">今年</span><span class="v">0<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">去年同期</span><span class="v">2<span class="unit">匹</span></span></div>
+        <div class="cell"><span class="k">累計</span><span class="v">4<span class="unit">匹</span></span></div>
+      </div>
+    </div>
+
+  </div>
+  <button class="show-all" id="showAllBtn" aria-expanded="false">
+    <span class="more-label">すべて表示（9魚種）</span>
+    <span class="less-label">上位5魚種のみ表示</span>
+  </button>
+
+  <div class="section-label">管理</div>
+  <div class="settings-group">
+    <div class="settings-row"><span>お気に入りポイント</span><span class="meta">12か所 <span class="chevron">›</span></span></div>
+    <div class="settings-row"><span>魚種マスタ</span><span class="meta">9種 <span class="chevron">›</span></span></div>
+    <div class="settings-row"><span>ルアー / ベイト</span><span class="meta">23件 <span class="chevron">›</span></span></div>
+  </div>
+
+  <div class="section-label">データ</div>
+  <div class="settings-group">
+    <div class="settings-row"><span>エクスポート</span><span class="chevron">›</span></div>
+    <div class="settings-row"><span>同期状態</span><span class="meta">最終同期 7/12 06:41 <span class="chevron">›</span></span></div>
+  </div>
+
+</div>
+
+<nav class="tabbar">
+  <div class="tabbar-inner">
+    <div class="tab"><span class="ico">🏠</span>ホーム</div>
+    <div class="tab"><span class="ico">🗺</span>マップ</div>
+    <div class="tab fab-slot"><span class="fab">＋</span><span style="visibility:hidden">登録</span></div>
+    <div class="tab"><span class="ico">🔍</span>リサーチ</div>
+    <div class="tab active"><span class="ico">👤</span>マイページ</div>
+  </div>
+</nav>
+
+<script>
+  const list = document.getElementById('speciesList');
+  const btn = document.getElementById('showAllBtn');
+  btn.addEventListener('click', () => {
+    const expanded = list.classList.toggle('expanded');
+    btn.setAttribute('aria-expanded', String(expanded));
+  });
+</script>
+</body>
+</html>
