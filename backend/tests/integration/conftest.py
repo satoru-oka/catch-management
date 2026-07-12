@@ -45,7 +45,6 @@ PLACEHOLDER_ENV_VALUES = {
     # reach a non-existent Supabase project.
     "TEST_SUPABASE_URL": {
         "https://your-test-project.supabase.co",
-        "https://xdbqwfwlytrhkkfpczln.supabase.co",
     },
     "TEST_SUPABASE_ANON_KEY": {"your-anon-public-key"},
     "TEST_SUPABASE_SERVICE_ROLE_KEY": {"your-service-role-key"},
