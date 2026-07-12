@@ -39,6 +39,15 @@ class SessionUpdate(BaseModel):
     notes: str | None = None
 
 
+def validate_spot_id(spot_id: str | None, db: Client) -> None:
+    """RLS越しに所有spotだけを確認し、存在オラクルを作らない。"""
+    if spot_id is None:
+        return
+    result = db.table("spots").select("id").eq("id", spot_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="ポイントが見つかりません")
+
+
 @router.get("")
 def list_sessions(
     db: Client = Depends(get_supabase),
@@ -62,6 +71,7 @@ def create_session(
     db: Client = Depends(get_supabase),
     user_id: str = Depends(get_current_user),
 ):
+    validate_spot_id(session.spot_id, db)
     data = session.model_dump(mode="json", exclude_none=True)
     data["user_id"] = user_id
     result = db.table("sessions").insert(data).execute()
@@ -165,6 +175,8 @@ def update_session(
     data = session.model_dump(mode="json", exclude_unset=True)
     if not data:
         raise HTTPException(status_code=422, detail="更新するフィールドがありません")
+    if "spot_id" in data:
+        validate_spot_id(data["spot_id"], db)
     result = db.table("sessions").update(data).eq("id", session_id).execute()
     return first_or_404(result.data, "釣行が見つかりません")
 

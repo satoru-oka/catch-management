@@ -90,8 +90,22 @@ ALTER TABLE lures ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "spots_own" ON spots
   USING (auth.uid() = user_id);
 
+-- sessions は行自体の所有権に加え、指定spotも自分の所有物であることを保証する
+-- (FISHMG-10)。詳細は supabase/migrations/004_sessions_spot_ownership_rls.sql。
 CREATE POLICY "sessions_own" ON sessions
-  USING (auth.uid() = user_id);
+  FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (
+    auth.uid() = user_id
+    AND (
+      spot_id IS NULL
+      OR EXISTS (
+        SELECT 1 FROM spots AS owned_spot
+        WHERE owned_spot.id = sessions.spot_id
+          AND owned_spot.user_id = auth.uid()
+      )
+    )
+  );
 
 CREATE POLICY "lures_own" ON lures
   USING (auth.uid() = user_id);

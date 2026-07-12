@@ -36,6 +36,7 @@ def test_list_sessions_rejects_limit_over_max(client):
 
 
 def test_create_session_normalizes_date_and_time(client, fake_db):
+    fake_db.queue_result([{"id": "spot-1"}])
     fake_db.queue_result([{"id": "ses1", "date": "2026-05-06"}])
 
     res = client.post(
@@ -49,13 +50,28 @@ def test_create_session_normalizes_date_and_time(client, fake_db):
     )
 
     assert res.status_code == 200
-    insert_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "insert")
+    assert fake_db.calls[0]["table"] == "spots"
+    insert_op = next(op for op in fake_db.calls[1]["ops"] if op[0] == "insert")
     inserted = insert_op[1][0]
     assert inserted["user_id"] == TEST_USER_ID
     assert inserted["date"] == "2026-05-06"
     assert inserted["start_time"] == "06:30:00"
     assert inserted["end_time"] == "10:00:00"
     assert inserted["spot_id"] == "spot-1"
+
+
+def test_create_session_rejects_unowned_spot(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.post(
+        "/api/sessions",
+        json={"date": "2026-05-06", "spot_id": "other-user-spot"},
+    )
+
+    assert res.status_code == 404
+    assert res.json()["detail"] == "ポイントが見つかりません"
+    assert len(fake_db.calls) == 1
+    assert fake_db.calls[0]["table"] == "spots"
 
 
 def test_create_session_drops_optional_none(client, fake_db):
@@ -119,6 +135,29 @@ def test_update_session_leaves_unset_fields_out(client, fake_db):
     assert res.status_code == 200
     update_op = next(op for op in fake_db.calls[0]["ops"] if op[0] == "update")
     assert update_op[1][0] == {"weather": "晴れ"}
+
+
+def test_update_session_accepts_owned_spot(client, fake_db):
+    fake_db.queue_result([{"id": "spot-2"}])
+    fake_db.queue_result([{"id": "ses1", "spot_id": "spot-2"}])
+
+    res = client.put("/api/sessions/ses1", json={"spot_id": "spot-2"})
+
+    assert res.status_code == 200
+    assert fake_db.calls[0]["table"] == "spots"
+    update_op = next(op for op in fake_db.calls[1]["ops"] if op[0] == "update")
+    assert update_op[1][0] == {"spot_id": "spot-2"}
+
+
+def test_update_session_rejects_unowned_spot(client, fake_db):
+    fake_db.queue_result([])
+
+    res = client.put("/api/sessions/ses1", json={"spot_id": "other-user-spot"})
+
+    assert res.status_code == 404
+    assert res.json()["detail"] == "ポイントが見つかりません"
+    assert len(fake_db.calls) == 1
+    assert fake_db.calls[0]["table"] == "spots"
 
 
 def test_update_session_with_date_field(client, fake_db):
