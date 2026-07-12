@@ -6,6 +6,7 @@ import os
 import uuid
 
 import pytest
+from postgrest.exceptions import APIError as PostgrestAPIError
 
 
 def _direct_postgrest_client(access_token: str):
@@ -145,7 +146,7 @@ def test_postgrest_direct_insert_with_foreign_lure_blocked_by_rls(
     # catch を insert しようとする -> RLS の WITH CHECK で拒否される。
     db_b = _direct_postgrest_client(second_user["access_token"])
 
-    with pytest.raises(Exception):  # APIError (row-level security violation)
+    with pytest.raises(PostgrestAPIError):  # row-level security violation
         db_b.table("catches").insert(
             {
                 "session_id": b_session["id"],
@@ -186,7 +187,7 @@ def test_postgrest_direct_insert_into_foreign_session_blocked_by_rls(
 
     db_b = _direct_postgrest_client(second_user["access_token"])
 
-    with pytest.raises(Exception):  # APIError (row-level security violation)
+    with pytest.raises(PostgrestAPIError):  # row-level security violation
         db_b.table("catches").insert(
             {"session_id": a_session["id"], "fish_species": "横取り"}
         ).execute()

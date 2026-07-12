@@ -7,23 +7,7 @@ import { apiFetch, ApiError } from '@/lib/api'
 import { tokyoDateIso } from '@/lib/date'
 import { extractProfile, profileInitial, type Profile } from '@/lib/profile'
 import { FullScreenSpinner } from '@/lib/Loading'
-import type { Catch } from '@/lib/types'
-
-// /api/catches/stats/summary のレスポンス。サーバー集計に置き換え (#72)。
-type RecentCatch = Catch & {
-  sessions: {
-    date: string
-    spots: { name: string; river_name: string | null } | null
-  } | null
-}
-
-type CatchSummary = {
-  today: { count: number; total_weight_g: number; max_length_cm: number | null }
-  lifetime_count: number
-  month_count: number
-  max_catch: { fish_species: string; length_cm: number | null } | null
-  recent: RecentCatch[]
-}
+import type { CatchSummary } from '@/lib/types'
 
 const WEEKDAY = ['日', '月', '火', '水', '木', '金', '土']
 

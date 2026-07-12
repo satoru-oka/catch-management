@@ -1,4 +1,6 @@
-export function getRequiredSupabaseEnv(env: NodeJS.ProcessEnv = process.env) {
+type SupabaseEnv = Readonly<Record<string, string | undefined>>
+
+export function getRequiredSupabaseEnv(env: SupabaseEnv = process.env) {
   const url = env.NEXT_PUBLIC_SUPABASE_URL
   const key = env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 

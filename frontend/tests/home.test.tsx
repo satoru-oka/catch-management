@@ -17,11 +17,12 @@ vi.mock('@/lib/supabase', () => ({
 }))
 
 import HomePage from '@/app/(protected)/page'
+import type { CatchSummary, RecentCatch } from '@/lib/types'
 
 const today = new Date().toISOString().slice(0, 10)
 
 // /api/catches/stats/summary のレスポンス相当 (#72 でサーバー集計に移行)。
-const recentCatch = {
+const recentCatch: RecentCatch = {
   id: 'catch1',
   session_id: 'ses1',
   fish_species: 'ヤマメ',
@@ -38,7 +39,7 @@ const recentCatch = {
   sessions: { date: today, spots: { name: '本流ポイント', river_name: '球磨川' } },
 }
 
-const emptySummary = {
+const emptySummary: CatchSummary = {
   today: { count: 0, total_weight_g: 0, max_length_cm: null },
   lifetime_count: 0,
   month_count: 0,

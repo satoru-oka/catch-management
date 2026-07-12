@@ -60,6 +60,21 @@ export type Catch = {
   created_at: string
 }
 
+export type RecentCatch = Catch & {
+  sessions: {
+    date: string
+    spots: { name: string; river_name: string | null } | null
+  } | null
+}
+
+export type CatchSummary = {
+  today: { count: number; total_weight_g: number; max_length_cm: number | null }
+  lifetime_count: number
+  month_count: number
+  max_catch: { fish_species: string; length_cm: number | null } | null
+  recent: RecentCatch[]
+}
+
 export type SessionDetail = Session & {
   spots: { name: string; river_name: string | null } | null
   catches: Catch[]
