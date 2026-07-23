@@ -178,6 +178,23 @@ describe('SpotsPage', () => {
     expect(await screen.findByText('取得失敗')).toBeInTheDocument()
   })
 
+  it('取得失敗後、再取得が成功したらエラーバナーが消える (#97)', async () => {
+    const { ApiError } = await import('@/lib/api')
+    apiFetch.mockRejectedValueOnce(new ApiError(500, '取得失敗')) // 初期 list
+    apiFetch.mockResolvedValueOnce({ id: 'sp2' }) // POST
+    apiFetch.mockResolvedValueOnce([{ ...baseSpot, id: 'sp2', name: '新ポイント' }]) // reload
+    render(<SpotsPage />)
+    expect(await screen.findByText('取得失敗')).toBeInTheDocument()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: '＋ ポイント追加' }))
+    await user.type(screen.getByLabelText('ポイント名 *'), '新ポイント')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    expect(await screen.findByText('新ポイント')).toBeInTheDocument()
+    expect(screen.queryByText('取得失敗')).not.toBeInTheDocument()
+  })
+
   it('キャンセルボタンでフォームが閉じる', async () => {
     apiFetch.mockResolvedValueOnce([])
     render(<SpotsPage />)
