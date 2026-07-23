@@ -31,6 +31,8 @@ export function useResourceList<T extends { id: string }, F extends Record<strin
     (offset = 0) =>
       apiFetch<T[]>(withPagination(endpoint, { limit: LIST_PAGE_SIZE, offset }))
         .then((page) => {
+          // 失敗 → 再取得成功でエラーバナーが残らないようクリアする (#97)
+          setError(null)
           setItems((current) => (offset === 0 ? page : [...current, ...page]))
           setHasMore(page.length === LIST_PAGE_SIZE)
         })
